@@ -33,6 +33,30 @@ util.extend(Worker.prototype, {
 
         if (!this.loading[source])
             this.loading[source] = {};
+		
+		// MOD FAB
+		var options = params.options;
+		ajax.getArrayBuffer = function (url, callback) {
+			var f = Windows.Storage.StorageFile.getFileFromPathAsync(options.path);
+			f.done(
+			function (file) {
+				Windows.Storage.FileIO.readBufferAsync(file).then(function (buffer) {
+					//Read the file into a byte array
+					var data = new Uint8Array(buffer.length);
+					var dataReader = Windows.Storage.Streams.DataReader.fromBuffer(buffer);
+					dataReader.readBytes(data);
+					dataReader.close();
+					callback(null, data);
+				});
+
+			}, function (err) {
+				callback(err);
+			});
+			return {
+				abort: function () {
+				}
+			};
+		};
 
         this.loading[source][uid] = ajax.getArrayBuffer(params.url, function(err, data) {
             delete this.loading[source][uid];

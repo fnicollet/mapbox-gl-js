@@ -1,7 +1,35 @@
 'use strict';
 
 var normalizeURL = require('../util/mapbox').normalizeGlyphsURL;
-var getArrayBuffer = require('../util/ajax').getArrayBuffer;
+// MOD FAB
+//var getArrayBuffer = require('../util/ajax').getArrayBuffer;
+var getArrayBuffer = function (url, callback) {
+    var orig = url;
+    url = url.replace("ms-appx:///", OfflineController.getDownloadPath() + "\\").replace(/\//g, "\\");
+    Utils.log("Loading font from " + url);
+    var f = Windows.Storage.StorageFile.getFileFromPathAsync(url);
+    f.done(
+    function (file) {
+        Windows.Storage.FileIO.readBufferAsync(file).then(function (buffer) {
+            //Read the file into a byte array
+            var fileContents = new Uint8Array(buffer.length);
+            var dataReader = Windows.Storage.Streams.DataReader.fromBuffer(buffer);
+            dataReader.readBytes(fileContents);
+            dataReader.close();
+            //
+            callback(null, fileContents);
+        });
+
+    }, function (err) {
+        if (err) {
+            callback(err);
+        }
+    });
+    return {
+        abort: function () {
+        }
+    };
+};
 var Glyphs = require('../util/glyphs');
 var Protobuf = require('pbf');
 

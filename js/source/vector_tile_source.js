@@ -7,6 +7,34 @@ var Source = require('./source');
 
 module.exports = VectorTileSource;
 
+window.VectorTileSource = window.VectorTileSource || {};
+
+window.VectorTileSource.QUEUE = [];
+window.VectorTileSource.IS_EXECUTING = false;
+window.VectorTileSource.doNext = function() {
+	Utils.log("window.VectorTileSource.doNext. Queue size is " + window.VectorTileSource.QUEUE.length + ", isExecuting : " + window.VectorTileSource.IS_EXECUTING);
+  if (window.VectorTileSource.IS_EXECUTING || window.VectorTileSource.QUEUE.length == 0) {
+    return;
+  }
+  window.VectorTileSource.IS_EXECUTING = true;
+  var o = window.VectorTileSource.QUEUE.shift();
+  var context = o.context;
+  Utils.log("window.VectorTileSource.doNext. Signal dispatched, queue is now " + window.VectorTileSource.QUEUE.length);
+  // MOD FAB
+  // TODO
+  // RELOAD TILE IF workerID already specified
+  context.workerID = o.dispatcher.send('load tile', o.params, o.callback); //context._loaded.bind(context));
+};
+window.VectorTileSource.addToQueue = function(context, dispatcher, params, callback) {
+  Utils.log("window.VectorTileSource.addToQueue: " + params.url);
+  window.VectorTileSource.QUEUE.push({
+    context: context,
+    dispatcher: dispatcher,
+    params: params,
+	callback: callback
+	});
+};
+
 function VectorTileSource(options) {
     util.extend(this, util.pick(options, 'url', 'tileSize'));
 
@@ -58,27 +86,47 @@ VectorTileSource.prototype = util.inherit(Evented, {
             overscaling: overscaling
         };
 
-        if (tile.workerID) {
-            this.dispatcher.send('reload tile', params, this._tileLoaded.bind(this, tile), tile.workerID);
-        } else {
-            tile.workerID = this.dispatcher.send('load tile', params, this._tileLoaded.bind(this, tile));
-        }
+		Utils.log("VectorTileSource._loadTile. Tile with url " + params.url);
+		
+		if (tile.zoom <= 8) {
+			if (tile.workerID) {
+				this.dispatcher.send('reload tile', params, this._tileLoaded.bind(this, tile), tile.workerID);
+			} else {
+				tile.workerID = this.dispatcher.send('load tile', params, this._tileLoaded.bind(this, tile));
+			}
+		} else {
+			// MOD FAB
+			window.VectorTileSource.addToQueue(this, this.dispatcher, params, this._tileLoadedLocal.bind(this, tile));
+			window.VectorTileSource.doNext();
+		}
     },
+	
+	// MOD FAB
+	// _tileLoaded with some added stuff
+	_tileLoadedLocal: function(tile, err, data) {
+		window.VectorTileSource.IS_EXECUTING = false;
+		window.VectorTileSource.doNext();
+		this._tileLoaded(tile, err, data);
+	},
 
     _tileLoaded: function(tile, err, data) {
-        if (tile.aborted)
+        if (tile.aborted){
+			Utils.log("VectorTileSource._loadTile. tile.aborted");
             return;
-
+		}
         if (err) {
+			Utils.log("VectorTileSource._loadTile. err");
+			Utils.logError(err);
             this.fire('tile.error', {tile: tile});
             return;
         }
-
+		Utils.log("VectorTileSource._loadTile. loadVectorData");
         tile.loadVectorData(data);
         this.fire('tile.load', {tile: tile});
     },
 
     _abortTile: function(tile) {
+		Utils.log("VectorTileSource._abortTile");
         tile.aborted = true;
         this.dispatcher.send('abort tile', { uid: tile.uid, source: this.id }, null, tile.workerID);
     },

@@ -219,6 +219,12 @@ Style.prototype = util.inherit(Evented, {
         if (this.sources[id] !== undefined) {
             throw new Error('There is already a source with this ID');
         }
+		
+		// MOD FAB
+        // dispatcher is messed up so reset
+        window.VectorTileSource.QUEUE = [];
+        window.VectorTileSource.IS_EXECUTING = false;
+		
         source = Source.create(source);
         this.sources[id] = source;
         source.id = id;
