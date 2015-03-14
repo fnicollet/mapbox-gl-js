@@ -222,6 +222,7 @@ Style.prototype = util.inherit(Evented, {
 		
 		// MOD FAB
         // dispatcher is messed up so reset
+		window.VectorTileSource = window.VectorTileSource || {};
         window.VectorTileSource.QUEUE = [];
         window.VectorTileSource.IS_EXECUTING = false;
 		
