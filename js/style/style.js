@@ -36,7 +36,8 @@ function Style(stylesheet, animationLoop) {
 
     util.bindAll([
         '_forwardSourceEvent',
-        '_forwardTileEvent'
+        '_forwardTileEvent',
+        '_redoPlacement'
     ], this);
 
     var loaded = function(err, stylesheet) {
@@ -349,7 +350,7 @@ Style.prototype = util.inherit(Evented, {
         point = Point.convert(point);
 
         if (params.layer) {
-            params.layer = { id: params.layer.id };
+            params.layer = { id: params.layer };
         }
 
         util.asyncEach(Object.keys(this.sources), function(id, callback) {
@@ -377,6 +378,12 @@ Style.prototype = util.inherit(Evented, {
     _updateSources: function(transform) {
         for (var id in this.sources) {
             this.sources[id].update(transform);
+        }
+    },
+
+    _redoPlacement: function() {
+        for (var id in this.sources) {
+            if (this.sources[id].redoPlacement) this.sources[id].redoPlacement();
         }
     },
 
@@ -416,6 +423,6 @@ Style.prototype = util.inherit(Evented, {
     },
 
     'get glyphs': function(params, callback) {
-        this.glyphSource.getRects(params.fontstack, params.codepoints, params.uid, callback);
+        this.glyphSource.getSimpleGlyphs(params.fontstack, params.codepoints, params.uid, callback);
     }
 });

@@ -49,12 +49,12 @@ function Interaction(el) {
         now = null;
     }
 
-    function click(point) {
-        interaction.fire('click', {point: point});
+    function click(point, ev) {
+        interaction.fire('click', {point: point, originalEvent: ev});
     }
 
-    function mousemove(point) {
-        interaction.fire('mousemove', {point: point});
+    function mousemove(point, ev) {
+        interaction.fire('mousemove', {point: point, originalEvent: ev});
     }
 
     function pan(point) {
@@ -162,13 +162,13 @@ function Interaction(el) {
             var target = ev.toElement || ev.target;
             while (target && target !== el && target.parentNode) target = target.parentNode;
             if (target === el) {
-                mousemove(point);
+                mousemove(point, ev);
             }
         }
     }
 
     function onclick(ev) {
-        if (!panned) click(mousePos(ev));
+        if (!panned) click(mousePos(ev), ev);
     }
 
     function ondoubleclick(ev) {
@@ -201,6 +201,8 @@ function Interaction(el) {
             if (value !== 0 && (value % 4.000244140625) === 0) {
                 // This one is definitely a mouse wheel event.
                 type = 'wheel';
+                // Normalize this value to match trackpad.
+                value = Math.floor(value / 4);
             } else if (value !== 0 && Math.abs(value) < 4) {
                 // This one is definitely a trackpad event because it is so small.
                 type = 'trackpad';

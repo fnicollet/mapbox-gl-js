@@ -28,9 +28,11 @@ function Handlers(map) {
 
     this.interaction = new Interaction(map.getCanvas())
         .on('click', function(e) {
+            e.latLng = map.unproject(e.point);
             map.fire('click', e);
         })
         .on('mousemove', function(e) {
+            e.latLng = map.unproject(e.point);
             map.fire('mousemove', e);
         })
         .on('down', function() {
@@ -132,7 +134,7 @@ function Handlers(map) {
             if (e.delta < 0 && scale !== 0) scale = 1 / scale;
 
             var fromScale = map.ease && isFinite(e.delta) ? map.ease.to : map.transform.scale,
-                duration = !isFinite(e.delta) ? 800 : e.source === 'trackpad' ? 0 : 300;
+                duration = !isFinite(e.delta) ? 800 : 0;
 
             map.zoomTo(map.transform.scaleZoom(fromScale * scale), {
                 duration: duration,

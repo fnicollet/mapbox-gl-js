@@ -27,7 +27,8 @@ exports._loadTileJSON = function(options) {
             abort: this._abortTile.bind(this),
             unload: this._unloadTile.bind(this),
             add: this._addTile.bind(this),
-            remove: this._removeTile.bind(this)
+            remove: this._removeTile.bind(this),
+            redoPlacement: this._redoTilePlacement ? this._redoTilePlacement.bind(this) : undefined
         });
 
         this.fire('load');
@@ -82,6 +83,24 @@ exports._vectorFeaturesAt = function(point, params, callback) {
     }, callback, result.tile.workerID);
 };
 
+/*
+ * Create a tiled data source instance given an options object
+ *
+ * @param {Object} options
+ * @param {String} options.type Either `raster` or `vector`.
+ * @param {String} options.url A tile source URL. This should either be `mapbox://{mapid}` or a full `http[s]` url that points to a TileJSON endpoint.
+ * @param {Array} options.tiles An array of tile sources. If `url` is not specified, `tiles` can be used instead to specify tile sources, as in the TileJSON spec. Other TileJSON keys such as `minzoom` and `maxzoom` can be specified in a source object if `tiles` is used.
+ * @param {String} options.id An optional `id` to assign to the source
+ * @param {Number} [options.tileSize=512] Optional tile size (width and height in pixels, assuming tiles are square). This option is only configurable for raster sources
+ * @param {Number} options.cacheSize Optional max number of tiles to cache at any given time
+ * @example
+ * var sourceObj = new mapboxgl.Source.create({
+ *    type: 'vector',
+ *    url: 'mapbox://mapbox.mapbox-streets-v5'
+ * });
+ * map.addSource('some id', sourceObj); // add
+ * map.removeSource('some id');  // remove
+ */
 exports.create = function(source) {
     // This is not at file scope in order to avoid a circular require.
     var sources = {
