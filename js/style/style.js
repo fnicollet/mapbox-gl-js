@@ -249,6 +249,7 @@ Style.prototype = util.inherit(Evented, {
      * @param {String} id id of the source to remove
      * @returns {Style} this style
      * @throws {Error} if no source is found with the given ID
+     * @private
      */
     removeSource: function(id) {
         if (this.sources[id] === undefined) {
@@ -272,16 +273,27 @@ Style.prototype = util.inherit(Evented, {
      * Get a source by id.
      * @param {String} id id of the desired source
      * @returns {Object} source
+     * @private
      */
     getSource: function(id) {
         return this.sources[id];
     },
 
+    /**
+     * Add a layer to the map style. The layer will be inserted before the layer with
+     * ID `before`, or appended if `before` is omitted.
+     * @param {StyleLayer|Object} layer
+     * @param {string=} before  ID of an existing layer to insert before
+     * @fires layer.add
+     * @returns {Style} `this`
+     */
     addLayer: function(layer, before) {
         if (this._layers[layer.id] !== undefined) {
             throw new Error('There is already a layer with this ID');
         }
-        layer = new StyleLayer(layer, this.stylesheet.constants || {});
+        if (!(layer instanceof StyleLayer)) {
+            layer = new StyleLayer(layer, this.stylesheet.constants || {});
+        }
         this._layers[layer.id] = layer;
         this._order.splice(before ? this._order.indexOf(before) : Infinity, 0, layer.id);
         layer.resolveLayout();
@@ -298,6 +310,7 @@ Style.prototype = util.inherit(Evented, {
      * @param {String} id id of the layer to remove
      * @returns {Style} this style
      * @throws {Error} if no layer is found with the given ID
+     * @private
      */
     removeLayer: function(id) {
         var layer = this._layers[id];
@@ -321,6 +334,7 @@ Style.prototype = util.inherit(Evented, {
      * Get a layer by id.
      * @param {String} id id of the desired layer
      * @returns {Layer} layer
+     * @private
      */
     getLayer: function(id) {
         return this._layers[id];
@@ -332,6 +346,7 @@ Style.prototype = util.inherit(Evented, {
      * returns the layer itself.
      * @param {String} id the layer's id
      * @returns {Layer} the referent layer or the layer itself
+     * @private
      */
     getReferentLayer: function(id) {
         var layer = this.getLayer(id);
@@ -352,6 +367,7 @@ Style.prototype = util.inherit(Evented, {
      * Get a layer's filter object
      * @param {String} layer the layer to inspect
      * @returns {*} the layer's filter, if any
+     * @private
      */
     getFilter: function(layer) {
         return this.getReferentLayer(layer).filter;
@@ -369,6 +385,7 @@ Style.prototype = util.inherit(Evented, {
      * @param {String} layer the layer to inspect
      * @param {String} name the name of the layout property
      * @returns {*} the property value
+     * @private
      */
     getLayoutProperty: function(layer, name) {
         return this.getReferentLayer(layer).getLayoutProperty(name);

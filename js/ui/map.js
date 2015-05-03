@@ -92,7 +92,7 @@ var Map = module.exports = function(options) {
 
 util.extend(Map.prototype, Evented);
 util.extend(Map.prototype, Easings);
-util.extend(Map.prototype, {
+util.extend(Map.prototype, /** @lends Map.prototype */{
 
     options: {
         center: [0, 0],
@@ -147,36 +147,47 @@ util.extend(Map.prototype, {
     },
 
     /**
-     * Sets a map location
+     * Sets a map location. This is like setView (and calls setView internally)
+     * but keeps the values for zoom, bearing, and pitch all the same.
      *
      * @param {Array} center Latitude and longitude (passed as `[lat, lng]`)
      * @fires movestart
      * @fires moveend
      * @returns {Map} `this`
+     * @example
+     * map.setCenter([-74, 38]);
      */
     setCenter: function(center) {
         this.setView(center, this.getZoom(), this.getBearing(), this.getPitch());
     },
 
     /**
-     * Sets a map zoom
+     * Sets a map zoom. This is like setView (and calls setView internally)
+     * but keeps the values for center, bearing, and pitch all the same.
      *
      * @param {number} zoom Map zoom level
      * @fires movestart
      * @fires moveend
      * @returns {Map} `this`
+     * @example
+     * // zoom the map to 5
+     * map.setZoom(5);
      */
     setZoom: function(zoom) {
         this.setView(this.getCenter(), zoom, this.getBearing(), this.getPitch());
     },
 
     /**
-     * Sets a map rotation
+     * Sets a map rotation. This is like setView (and calls setView internally)
+     * but keeps the values for center, zoom, and pitch all the same.
      *
      * @param {number} bearing Map rotation bearing in degrees counter-clockwise from north
      * @fires movestart
      * @fires moveend
      * @returns {Map} `this`
+     * @example
+     * // rotate the map to 90 degrees
+     * map.setBearing(90);
      */
     setBearing: function(bearing) {
         this.setView(this.getCenter(), this.getZoom(), bearing, this.getPitch());
@@ -195,7 +206,7 @@ util.extend(Map.prototype, {
     },
 
     /**
-     * Get the current view geographical point
+     * Get the current view geographical point.
      * @returns {LatLng}
      */
     getCenter: function() { return this.transform.center; },
@@ -360,6 +371,11 @@ util.extend(Map.prototype, {
      * @param {Array} features Displays a JSON array of features given the passed parameters of `featuresAt`
      *
      * @returns {Map} `this`
+     *
+     * @example
+     * map.featuresAt([10, 20], { radius: 10 }, function(err, features) {
+     *   console.log(features);
+     * });
      */
     featuresAt: function(point, params, callback) {
         var coord = this.transform.pointCoordinate(Point.convert(point));
@@ -466,7 +482,7 @@ util.extend(Map.prototype, {
     /**
      * Add a layer to the map style. The layer will be inserted before the layer with
      * ID `before`, or appended if `before` is omitted.
-     * @param {Layer} layer
+     * @param {StyleLayer|Object} layer
      * @param {string=} before  ID of an existing layer to insert before
      * @fires layer.add
      * @returns {Map} `this`
@@ -481,7 +497,7 @@ util.extend(Map.prototype, {
      * Remove the layer with the given `id` from the map. Any layers which refer to the
      * specified layer via a `ref` property are also removed.
      *
-     * @param {string} id
+     * @param {string} id layer id
      * @fires layer.remove
      * @returns {Map} this
      */
@@ -787,12 +803,25 @@ util.extend(Map.prototype, {
 
 util.extendAll(Map.prototype, {
 
-    // debug code
+    /**
+     * Enable debugging mode
+     *
+     * @name debug
+     * @memberof Map
+     * @type {boolean}
+     */
     _debug: false,
     get debug() { return this._debug; },
     set debug(value) { this._debug = value; this.update(); },
 
-    // show collision boxes
+    /**
+     * Show collision boxes: useful for debugging label placement
+     * in styles.
+     *
+     * @name collisionDebug
+     * @memberof Map
+     * @type {boolean}
+     */
     _collisionDebug: false,
     get collisionDebug() { return this._collisionDebug; },
     set collisionDebug(value) {
@@ -803,7 +832,13 @@ util.extendAll(Map.prototype, {
         this.update();
     },
 
-    // continuous repaint
+    /**
+     * Enable continuous repaint to analyze performance
+     *
+     * @name repaint
+     * @memberof Map
+     * @type {boolean}
+     */
     _repaint: false,
     get repaint() { return this._repaint; },
     set repaint(value) { this._repaint = value; this.update(); },

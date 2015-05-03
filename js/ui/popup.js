@@ -27,7 +27,7 @@ function Popup(options) {
         this);
 }
 
-Popup.prototype = util.inherit(Evented, {
+Popup.prototype = util.inherit(Evented, /** @lends Popup.prototype */{
     options: {
         closeButton: true,
         closeOnClick: true
@@ -89,7 +89,7 @@ Popup.prototype = util.inherit(Evented, {
     },
 
     /**
-     * Popuplate a popup element with text only content
+     * Fill a popup element with text only content
      * @param {string} text
      * @returns {Popup} `this`
      */
@@ -100,7 +100,7 @@ Popup.prototype = util.inherit(Evented, {
     },
 
     /**
-     * Popuplate a popup element with HTML content
+     * Fill a popup element with HTML content
      * @param {string} html
      * @returns {Popup} `this`
      */

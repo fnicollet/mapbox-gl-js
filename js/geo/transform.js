@@ -11,10 +11,12 @@ var LatLng = require('./lat_lng'),
 module.exports = Transform;
 
 /*
- * A single transform, generally used for a single tile to be scaled, rotated, and zoomed.
+ * A single transform, generally used for a single tile to be
+ * scaled, rotated, and zoomed.
  *
  * @param {Number} minZoom
  * @param {Number} maxZoom
+ * @private
  */
 function Transform(minZoom, maxZoom) {
     this.tileSize = 512; // constant
@@ -114,6 +116,7 @@ Transform.prototype = {
      * @param {Number} lon
      * @param {Number} [worldSize=this.worldSize]
      * @returns {Number} pixel coordinate
+     * @private
      */
     lngX: function(lon, worldSize) {
         return (180 + lon) * (worldSize || this.worldSize) / 360;
@@ -124,6 +127,7 @@ Transform.prototype = {
      * @param {Number} lat
      * @param {Number} [worldSize=this.worldSize]
      * @returns {Number} pixel coordinate
+     * @private
      */
     latY: function(lat, worldSize) {
         var y = 180 / Math.PI * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
@@ -167,14 +171,31 @@ Transform.prototype = {
         this.setLocationAtPoint(center, p);
     },
 
+    /**
+     * Given a location, return the screen point that corresponds to it
+     * @param {LatLng} latlng location
+     * @returns {Point} screen point
+     */
     locationPoint: function(latlng) {
         return this.coordinatePoint(this.locationCoordinate(latlng));
     },
 
+    /**
+     * Given a point on screen, return its latlng
+     * @param {Point} p screen point
+     * @returns {LatLng} latlng location
+     */
     pointLocation: function(p) {
         return this.coordinateLocation(this.pointCoordinate(p));
     },
 
+    /**
+     * Given a geographical latlng, return an unrounded
+     * coordinate that represents it at this transform's zoom level and
+     * worldsize.
+     * @param {LatLng} latlng
+     * @returns {Coordinate}
+     */
     locationCoordinate: function(latlng) {
         var k = this.zoomScale(this.tileZoom) / this.worldSize;
         return new Coordinate(
@@ -183,6 +204,11 @@ Transform.prototype = {
             this.tileZoom);
     },
 
+    /**
+     * Given a Coordinate, return its geographical position.
+     * @param {Coordinate} coord
+     * @returns {LatLng} latlng
+     */
     coordinateLocation: function(coord) {
         var worldSize = this.zoomScale(coord.zoom);
         return new LatLng(
@@ -224,6 +250,11 @@ Transform.prototype = {
             this.tileZoom);
     },
 
+    /**
+     * Given a coordinate, return the screen point that corresponds to it
+     * @param {Coordinate} coord
+     * @returns {Point} screen point
+     */
     coordinatePoint: function(coord) {
         var matrix = this.coordinatePointMatrix(coord.zoom);
         var p = vec4.transformMat4([], [coord.column, coord.row, 0, 1], matrix);
@@ -238,7 +269,10 @@ Transform.prototype = {
         return proj;
     },
 
-    // converts gl coordinates -1..1 to pixels 0..width
+    /**
+     * converts gl coordinates -1..1 to pixels 0..width
+     * @returns {Object} matrix
+     */
     getPixelMatrix: function() {
         var m = mat4.create();
         mat4.scale(m, m, [this.width / 2, -this.height / 2, 1]);
@@ -301,7 +335,14 @@ Transform.prototype = {
 
     getProjMatrix: function() {
         var m = new Float64Array(16);
-        mat4.perspective(m, 2 * Math.atan((this.height / 2) / this.altitude), this.width / this.height, 0.1, this.altitude + 1);
+
+        // Find the distance from the center point to the center top in altitude units using law of sines.
+        var halfFov = Math.atan(0.5 / this.altitude);
+        var topHalfSurfaceDistance = Math.sin(halfFov) * this.altitude / Math.sin(Math.PI / 2 - this._pitch - halfFov);
+        // Calculate z value of the farthest fragment that should be rendered.
+        var farZ = Math.cos(Math.PI / 2 - this._pitch) * topHalfSurfaceDistance + this.altitude;
+
+        mat4.perspective(m, 2 * Math.atan((this.height / 2) / this.altitude), this.width / this.height, 0.1, farZ);
 
         mat4.translate(m, m, [0, 0, -this.altitude]);
 

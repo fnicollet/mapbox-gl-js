@@ -52,7 +52,7 @@ function GeoJSONSource(options) {
     });
 }
 
-GeoJSONSource.prototype = util.inherit(Evented, {
+GeoJSONSource.prototype = util.inherit(Evented, /** @lends GeoJSONSource.prototype */{
     minzoom: 0,
     maxzoom: 14,
     _dirty: true,
@@ -61,6 +61,7 @@ GeoJSONSource.prototype = util.inherit(Evented, {
      * Update source geojson data and rerender map
      *
      * @param {Object|String} data A GeoJSON data object or URL to it. The latter is preferable in case of large GeoJSON files.
+     * @returns {GeoJSONSource} this
      */
     setData: function(data) {
         this._data = data;
@@ -121,11 +122,11 @@ GeoJSONSource.prototype = util.inherit(Evented, {
     },
 
     _loadTile: function(tile) {
-        var overscaling = tile.zoom > this.maxzoom ? Math.pow(2, tile.zoom - this.maxzoom) : 1;
+        var overscaling = tile.coord.z > this.maxzoom ? Math.pow(2, tile.coord.z - this.maxzoom) : 1;
         var params = {
             uid: tile.uid,
-            id: tile.id,
-            zoom: tile.zoom,
+            coord: tile.coord,
+            zoom: tile.coord.z,
             maxZoom: this.maxzoom,
             tileSize: 512,
             source: this.id,

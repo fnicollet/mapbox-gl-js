@@ -31,8 +31,8 @@ function getIconQuads(anchor, shapedIcon, boxScale, line, layout, alongLine) {
 
     var angle = layout['icon-rotate'] * Math.PI / 180;
     if (alongLine) {
-        var next = line[anchor.segment];
-        angle += -Math.atan2(next.x - anchor.x, next.y - anchor.y) + Math.PI / 2;
+        var prev = line[anchor.segment];
+        angle += Math.atan2(anchor.y - prev.y, anchor.x - prev.x);
     }
 
     if (angle) {
@@ -58,19 +58,22 @@ function getGlyphQuads(anchor, shaping, boxScale, line, layout, alongLine) {
     var quads = [];
 
     for (var k = 0; k < positionedGlyphs.length; k++) {
-        var shape = positionedGlyphs[k];
-        var glyph = shape.glyph;
+        var positionedGlyph = positionedGlyphs[k];
+        var glyph = positionedGlyph.glyph;
         var rect = glyph.rect;
 
         if (!rect) continue;
 
-        var centerX = (shape.x + glyph.advance / 2) * boxScale;
+        var centerX = (positionedGlyph.x + glyph.advance / 2) * boxScale;
 
         var glyphInstances;
+        var labelMinScale = minScale;
         if (alongLine) {
             glyphInstances = [];
-            getSegmentGlyphs(glyphInstances, anchor, centerX, line, anchor.segment, 1);
-            if (keepUpright) getSegmentGlyphs(glyphInstances, anchor, centerX, line, anchor.segment, -1);
+            labelMinScale = getSegmentGlyphs(glyphInstances, anchor, centerX, line, anchor.segment, 1);
+            if (keepUpright) {
+                labelMinScale = Math.min(labelMinScale, getSegmentGlyphs(glyphInstances, anchor, centerX, line, anchor.segment, -1));
+            }
 
         } else {
             glyphInstances = [{
@@ -82,8 +85,8 @@ function getGlyphQuads(anchor, shaping, boxScale, line, layout, alongLine) {
             }];
         }
 
-        var x1 = shape.x + glyph.left,
-            y1 = shape.y - glyph.top,
+        var x1 = positionedGlyph.x + glyph.left,
+            y1 = positionedGlyph.y - glyph.top,
             x2 = x1 + rect.w,
             y2 = y1 + rect.h,
 
@@ -113,7 +116,7 @@ function getGlyphQuads(anchor, shaping, boxScale, line, layout, alongLine) {
             }
 
             // Prevent label from extending past the end of the line
-            var glyphMinScale = Math.max(instance.minScale, anchor.scale);
+            var glyphMinScale = Math.max(instance.minScale, labelMinScale);
 
             var glyphAngle = (anchor.angle + textRotate + instance.offset + 2 * Math.PI) % (2 * Math.PI);
             quads.push(new SymbolQuad(instance.anchor, tl, tr, bl, br, rect, glyphAngle, glyphMinScale, instance.maxScale));
@@ -137,21 +140,19 @@ function getSegmentGlyphs(glyphs, anchor, offset, line, segment, direction) {
 
     offset = Math.abs(offset);
 
-    var placementScale = anchor.scale;
+    var placementScale = minScale;
 
     while (true) {
         var distance = newAnchor.dist(end);
         var scale = offset / distance;
 
-        // Get the angle between the anchor point and the end point.
-        // arctan2(y, x) returns [-π, +π].
-        // Use -arctan2(x, y) to account for canvas reference frame
-        // Add +/- 90deg to get the angle of the normal
-        var angle = -Math.atan2(end.x - newAnchor.x, end.y - newAnchor.y) + direction * Math.PI / 2;
+        // Get the angle of the line segment
+        var angle = Math.atan2(end.y - newAnchor.y, end.x - newAnchor.x);
+        if (direction < 0) angle += Math.PI;
         if (upsideDown) angle += Math.PI;
 
         glyphs.push({
-            anchor: new Anchor(newAnchor.x, newAnchor.y, anchor.angle, anchor.scale),
+            anchor: new Anchor(newAnchor.x, newAnchor.y, anchor.angle),
             offset: upsideDown ? Math.PI : 0,
             minScale: scale,
             maxScale: prevScale,
@@ -167,8 +168,7 @@ function getSegmentGlyphs(glyphs, anchor, offset, line, segment, direction) {
             segment += direction;
             end = line[segment];
             if (!end) {
-                anchor.scale = scale;
-                return;
+                return scale;
             }
         }
 
@@ -177,4 +177,6 @@ function getSegmentGlyphs(glyphs, anchor, offset, line, segment, direction) {
 
         prevScale = scale;
     }
+
+    return placementScale;
 }

@@ -13,8 +13,20 @@ function drawSymbols(painter, layer, posMatrix, tile) {
     var elementGroups = tile.elementGroups[layer.ref || layer.id];
     if (!elementGroups) return;
 
+    var drawAcrossEdges = !(layer.layout['text-allow-overlap'] || layer.layout['icon-allow-overlap'] ||
+        layer.layout['text-ignore-placement'] || layer.layout['icon-ignore-placement']);
+
     var gl = painter.gl;
-    gl.disable(gl.STENCIL_TEST);
+
+    if (drawAcrossEdges) {
+        // Disable the stencil test so that labels aren't clipped to tile boundaries.
+        //
+        // Layers with features that may be drawn overlapping aren't clipped. These
+        // layers are sorted in the y direction, and to draw the correct ordering near
+        // tile edges the icons are included in both tiles and clipped when drawing.
+        gl.disable(gl.STENCIL_TEST);
+    }
+
     if (elementGroups.text.groups.length) {
         drawSymbol(painter, layer, posMatrix, tile, elementGroups.text, 'text', true);
     }
@@ -23,7 +35,10 @@ function drawSymbols(painter, layer, posMatrix, tile) {
     }
 
     drawCollisionDebug(painter, layer, posMatrix, tile);
-    gl.enable(gl.STENCIL_TEST);
+
+    if (drawAcrossEdges) {
+        gl.enable(gl.STENCIL_TEST);
+    }
 }
 
 var defaultSizes = {
@@ -43,7 +58,7 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
 
     if (skewed) {
         exMatrix = mat4.create();
-        s = 4096 / tile.tileSize / Math.pow(2, painter.transform.zoom - tile.zoom);
+        s = 4096 / tile.tileSize / Math.pow(2, painter.transform.zoom - tile.coord.z);
         gammaScale = 1 / Math.cos(tr._pitch);
     } else {
         exMatrix = mat4.clone(tile.exMatrix);
@@ -53,7 +68,7 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
     mat4.scale(exMatrix, exMatrix, [s, s, 1]);
 
     // If layer.paint.size > layer.layout[prefix + '-max-size'] then labels may collide
-    var fontSize = layer.paint[prefix + '-size'] || layer.layout[prefix + '-max-size'];
+    var fontSize = layer.paint[prefix + '-size'];
     var fontScale = fontSize / defaultSizes[prefix];
     mat4.scale(exMatrix, exMatrix, [ fontScale, fontScale, 1 ]);
 
@@ -64,7 +79,7 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
     var extra = (topedgelength + x) / topedgelength - 1;
 
     var text = prefix === 'text';
-    var shader, buffer, texsize;
+    var shader, vertex, elements, texsize;
 
     if (!text && !painter.style.sprite.loaded())
         return;
@@ -79,12 +94,14 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
 
     if (text) {
         painter.glyphAtlas.updateTexture(gl);
-        buffer = tile.buffers.glyphVertex;
+        vertex = tile.buffers.glyphVertex;
+        elements = tile.buffers.glyphElement;
         texsize = [painter.glyphAtlas.width / 4, painter.glyphAtlas.height / 4];
     } else {
         painter.spriteAtlas.bind(gl, alignedWithMap || painter.options.rotating ||
             painter.options.zooming || fontScale !== 1 || sdf || painter.transform.pitch);
-        buffer = tile.buffers.iconVertex;
+        vertex = tile.buffers.iconVertex;
+        elements = tile.buffers.iconElement;
         texsize = [painter.spriteAtlas.width / 4, painter.spriteAtlas.height / 4];
     }
 
@@ -93,8 +110,6 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
     gl.uniform2fv(shader.u_texsize, texsize);
     gl.uniform1i(shader.u_skewed, skewed);
     gl.uniform1f(shader.u_extra, extra);
-
-    buffer.bind(gl, shader);
 
     // adjust min/max zooms for variable font sies
     var zoomAdjust = Math.log(fontSize / layer.layout[prefix + '-max-size']) / Math.LN2 || 0;
@@ -107,8 +122,9 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
     gl.uniform1f(shader.u_maxfadezoom, Math.floor(f.maxfadezoom * 10));
     gl.uniform1f(shader.u_fadezoom, (painter.transform.zoom + f.bump) * 10);
 
-    var begin = elementGroups.groups[0].vertexStartIndex,
-        len = elementGroups.groups[0].vertexLength;
+    var group, offset, count, elementOffset;
+
+    elements.bind(gl);
 
     if (sdf) {
         var sdfPx = 8;
@@ -119,17 +135,43 @@ function drawSymbol(painter, layer, posMatrix, tile, elementGroups, prefix, sdf)
         gl.uniform1f(shader.u_gamma, gamma * gammaScale);
         gl.uniform4fv(shader.u_color, layer.paint[prefix + '-color']);
         gl.uniform1f(shader.u_buffer, (256 - 64) / 256);
-        gl.drawArrays(gl.TRIANGLES, begin, len);
+
+        for (var i = 0; i < elementGroups.groups.length; i++) {
+            group = elementGroups.groups[i];
+            offset = group.vertexStartIndex * vertex.itemSize;
+            vertex.bind(gl, shader, offset);
+
+            count = group.elementLength * 3;
+            elementOffset = group.elementStartIndex * elements.itemSize;
+            gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, elementOffset);
+        }
 
         if (layer.paint[prefix + '-halo-color']) {
             // Draw halo underneath the text.
             gl.uniform1f(shader.u_gamma, (layer.paint[prefix + '-halo-blur'] * blurOffset / fontScale / sdfPx + gamma) * gammaScale);
             gl.uniform4fv(shader.u_color, layer.paint[prefix + '-halo-color']);
             gl.uniform1f(shader.u_buffer, (haloOffset - layer.paint[prefix + '-halo-width'] / fontScale) / sdfPx);
-            gl.drawArrays(gl.TRIANGLES, begin, len);
+
+            for (var j = 0; j < elementGroups.groups.length; j++) {
+                group = elementGroups.groups[j];
+                offset = group.vertexStartIndex * vertex.itemSize;
+                vertex.bind(gl, shader, offset);
+
+                count = group.elementLength * 3;
+                elementOffset = group.elementStartIndex * elements.itemSize;
+                gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, elementOffset);
+            }
         }
     } else {
         gl.uniform1f(shader.u_opacity, layer.paint['icon-opacity']);
-        gl.drawArrays(gl.TRIANGLES, begin, len);
+        for (var k = 0; k < elementGroups.groups.length; k++) {
+            group = elementGroups.groups[k];
+            offset = group.vertexStartIndex * vertex.itemSize;
+            vertex.bind(gl, shader, offset);
+
+            count = group.elementLength * 3;
+            elementOffset = group.elementStartIndex * elements.itemSize;
+            gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, elementOffset);
+        }
     }
 }

@@ -35,6 +35,14 @@ var Protobuf = require('pbf');
 
 module.exports = GlyphSource;
 
+/**
+ * A glyph source has a URL from which to load new glyphs and owns a GlyphAtlas
+ * that stores currently-loaded glyphs.
+ *
+ * @param {string} url glyph template url
+ * @param {Object} glyphAtlas glyph atlas object
+ * @private
+ */
 function GlyphSource(url, glyphAtlas) {
     this.url = url && normalizeURL(url);
     this.glyphAtlas = glyphAtlas;
@@ -99,9 +107,10 @@ GlyphSource.prototype.getSimpleGlyphs = function(fontstack, glyphIDs, uid, callb
 
 // A simplified representation of the glyph containing only the properties needed for shaping.
 function SimpleGlyph(glyph, rect, buffer) {
+    var padding = 1;
     this.advance = glyph.advance;
-    this.left = glyph.left - buffer;
-    this.top = glyph.top + buffer;
+    this.left = glyph.left - buffer - padding;
+    this.top = glyph.top + buffer + padding;
     this.rect = rect;
 }
 
@@ -130,6 +139,16 @@ GlyphSource.prototype.loadRange = function(fontstack, range, callback) {
     }
 };
 
+/**
+ * Use CNAME sharding to load a specific glyph range over a randomized
+ * but consistent subdomain.
+ * @param {string} fontstack comma-joined fonts
+ * @param {string} range comma-joined range
+ * @param {url} url templated url
+ * @param {string} [subdomains=abc] subdomains as a string where each letter is one.
+ * @returns {string} a url to load that section of glyphs
+ * @private
+ */
 function glyphUrl(fontstack, range, url, subdomains) {
     subdomains = subdomains || 'abc';
 

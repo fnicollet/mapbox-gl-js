@@ -38,7 +38,7 @@ function shapeText(text, glyphs, maxWidth, lineHeight, horizontalAlign, vertical
         var codePoint = text.charCodeAt(i);
         var glyph = glyphs[codePoint];
 
-        if (codePoint === 0 || !glyph) continue;
+        if (!glyph) continue;
 
         positionedGlyphs.push(new PositionedGlyph(codePoint, x, y, glyph));
         x += glyph.advance + spacing;
@@ -137,11 +137,12 @@ function align(positionedGlyphs, justify, horizontalAlign, verticalAlign, maxLin
 function shapeIcon(image, layout) {
     if (!image || !image.rect) return null;
 
+    var padding = 1;
     var dx = layout['icon-offset'][0];
     var dy = layout['icon-offset'][1];
-    var x1 = dx - image.width / 2;
+    var x1 = dx - image.width / 2 - padding;
     var x2 = x1 + image.rect.w;
-    var y1 = dy - image.height / 2;
+    var y1 = dy - image.height / 2 - padding;
     var y2 = y1 + image.rect.h;
 
     return new PositionedIcon(image, y1, y2, x1, x2);

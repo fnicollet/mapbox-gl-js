@@ -3,6 +3,15 @@
 var browser = require('../util/browser');
 var mat2 = require('gl-matrix').mat2;
 
+/**
+ * Draw a line. Under the hood this will read elements from
+ * a tile, dash textures from a lineAtlas, and style properties from a layer.
+ * @param {Object} painter
+ * @param {Object} layer
+ * @param {Object} posMatrix
+ * @param {Tile} tile
+ * @returns {undefined} draws with the painter
+ */
 module.exports = function drawLine(painter, layer, posMatrix, tile) {
     // No data
     if (!tile.buffers) return;
@@ -35,7 +44,7 @@ module.exports = function drawLine(painter, layer, posMatrix, tile) {
     var outset = offset + edgeWidth + antialiasing / 2 + shift;
 
     var color = layer.paint['line-color'];
-    var ratio = painter.transform.scale / (1 << tile.zoom) / (4096 / tile.tileSize);
+    var ratio = painter.transform.scale / (1 << tile.coord.z) / (4096 / tile.tileSize);
     var vtxMatrix = painter.translateMatrix(posMatrix, tile, layer.paint['line-translate'], layer.paint['line-translate-anchor']);
 
     var tr = painter.transform;
@@ -50,6 +59,9 @@ module.exports = function drawLine(painter, layer, posMatrix, tile) {
     var topedgelength = Math.sqrt(tr.height * tr.height / 4  * (1 + tr.altitude * tr.altitude));
     var x = tr.height / 2 * Math.tan(tr._pitch);
     var extra = (topedgelength + x) / topedgelength - 1;
+
+    // how much the tile is overscaled by
+    var overscaling = tile.tileSize / painter.transform.tileSize;
 
     var shader;
 
@@ -71,7 +83,7 @@ module.exports = function drawLine(painter, layer, posMatrix, tile) {
         var posB = painter.lineAtlas.getDash(dasharray.to, layer.layout['line-cap'] === 'round');
         painter.lineAtlas.bind(gl);
 
-        var patternratio = Math.pow(2, Math.floor(Math.log(painter.transform.scale) / Math.LN2) - tile.zoom) / 8;
+        var patternratio = Math.pow(2, Math.floor(Math.log(painter.transform.scale) / Math.LN2) - tile.coord.z) / 8 * overscaling;
         var scaleA = [patternratio / posA.width / dasharray.fromScale, -posA.height / 2];
         var gammaA = painter.lineAtlas.width / (dasharray.fromScale * posA.width * 256 * browser.devicePixelRatio) / 2;
         var scaleB = [patternratio / posB.width / dasharray.toScale, -posB.height / 2];
@@ -90,7 +102,7 @@ module.exports = function drawLine(painter, layer, posMatrix, tile) {
         var imagePosA = painter.spriteAtlas.getPosition(image.from, true);
         var imagePosB = painter.spriteAtlas.getPosition(image.to, true);
         if (!imagePosA || !imagePosB) return;
-        var factor = 4096 / tile.tileSize / Math.pow(2, painter.transform.tileZoom - tile.zoom);
+        var factor = 4096 / tile.tileSize / Math.pow(2, painter.transform.tileZoom - tile.coord.z) * overscaling;
 
         painter.spriteAtlas.bind(gl, true);
 

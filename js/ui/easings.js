@@ -8,16 +8,13 @@ var LatLngBounds = require('../geo/lat_lng_bounds');
 var Point = require('point-geometry');
 
 /**
- * Animation methods that set the state of the map
- * @extends mapboxgl.Map
- *
  * @typedef {Object} [animOptions]
  * @param {Number} [animOptions.duration=500] Number in milliseconds
  * @param {Function} animOptions.easing
  * @param {Array} [animOptions.offset=[0,0]] point, origin of movement relative to map center
  * @param {Boolean} [animOptions.animate=true] When set to false, no animation happens
  */
-util.extend(exports, {
+util.extend(exports, /** @lends Map.prototype */{
     isEasing: function() {
         return !!this._abortFn;
     },
@@ -278,7 +275,7 @@ util.extend(exports, {
             zoom = Math.min(tr.scaleZoom(tr.scale * Math.min(scaleX, scaleY)), options.maxZoom);
 
         return options.linear ?
-            this.easeTo(center, zoom, 0, options) :
+            this.easeTo(center, zoom, 0, this.getPitch(), options) :
             this.flyTo(center, zoom, 0, options);
     },
 
@@ -366,6 +363,17 @@ util.extend(exports, {
      * @fires movestart
      * @fires moveend
      * @returns {this}
+     * @example
+     * // fly with default options to null island
+     * map.flyTo([0, 0], 9, 0);
+     * // using flyTo options
+     * map.flyTo([0, 0], 9, 0, {
+     *   speed: 0.2,
+     *   curve: 1,
+     *   easing: function(t) {
+     *     return t;
+     *   }
+     * });
      */
     flyTo: function(latlng, zoom, bearing, options) {
         this.stop();
