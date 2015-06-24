@@ -2,7 +2,39 @@
 
 A WebGL JavaScript interactive maps library that can render [Mapbox Vector Tiles](https://www.mapbox.com/blog/vector-tiles/).
 
-## Setup
+## Using mapbox-gl-js
+
+Include the source via HTML tags:
+
+```html
+<script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.8.1/mapbox-gl.js'></script>
+<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.8.1/mapbox-gl.css' rel='stylesheet' />
+```
+
+For more information, see the [API documentation](https://www.mapbox.com/mapbox-gl-js/api/) and [examples](https://www.mapbox.com/mapbox-gl-js/examples/).
+
+Alternatively, you can `npm install mapbox-gl` and use it as a bundled dependency with browserify.
+
+## Developing mapbox-gl-js
+
+The following tools are required on any platform to develop `mapbox-gl-js`.
+Mac users are advised to use Homebrew unless they want to build these packages
+manually. APT install steps are relevant to Ubuntu Linux users.
+
+* [git](https://git-scm.com/)
+  * OSX: `brew install git`
+  * APT: `apt-get install git`
+* [node.js](https://nodejs.org/)
+* [GNU Make](http://www.gnu.org/software/make/)
+* [imagemagick](http://www.imagemagick.org/)
+  * OSX: `brew install imagemagick`
+  * APT: `apt-get install imagemagik`
+
+On Linux, libglew-dev is required in order to run rendering tests:
+
+```
+$ sudo apt-get install libglew-dev
+```
 
 To install dependencies and build the source files:
 
@@ -14,21 +46,54 @@ To serve the debug page:
 
 ```bash
 $ npm start &
-$ open http://localhost:1337/debug/index.html?access_token=$MapboxAccessToken
+$ open "http://localhost:9966/debug/?access_token="`echo $MapboxAccessToken`
 ```
 
-This assumes you have the `MapboxAccessToken` environment variable set to a Mapbox API token from https://www.mapbox.com/account/apps/.
-It will watch the source files and automatically rebuild the browserify bundle whenever a change is detected.
+This assumes you have the `MapboxAccessToken` environment variable set to a
+Mapbox API token from https://www.mapbox.com/account/apps/.
+This command uses [mattdesl/budo](https://github.com/mattdesl/budo) to watch
+source files, rebuild the browserify bundle, and trigger LiveReload updates.
 
-Tests are written in `tape`. Most tests run within nodejs, but a few require a browser environment.
+## Running Tests
 
-* `npm test`: local tests run in nodejs - excludes browser tests
-* `npm run cov`: generate test coverage report - excludes browser tests
-* `npm run test-browser`: run all tests locally in a browser
+There are two test suites associated with Mapbox GL JS
+
+ - `npm test` runs quick unit tests
+ - `npm run test-suite` runs slower rendering tests from the [mapbox-gl-test-suite](https://github.com/mapbox/mapbox-gl-test-suite) repository
+
+## Running Benchmarks
+
+The FPS benchmarking page compares the performance of your local copy of GL JS against `v0.7.0`. Benchmarking configuration is within `bench/fps/site.js`. 
+
+To serve the FPS benchmark page:
+
+```bash
+$ npm start &
+$ open "http://localhost:9966/bench/fps/?access_token="`echo $MapboxAccessToken`
+```
 
 ## [API Documentation](https://www.mapbox.com/mapbox-gl-js/)
 
-`npm run docs`: generate API docs
+API documentation is written as [JSDoc comments](http://usejsdoc.org/) and processed with
+[documentationjs](http://documentation.js.org/). We aim to document all classes and methods,
+public and private. Mark private classes and methods with `@private`.
+
+To generate the HTML documentation from JSDoc, run `npm run docs`. To view the result, run
+`jekyll serve` (requires [Jekyll](http://jekyllrb.com/)).
+
+## Releasing
+
+To prepare a release:
+
+* Update CHANGELOG.md
+* Update the version number in package.json, README.md, _config.yml, and _config.mb-pages.yml
+* Publish the build to the CDN (see below)
+* Publish the build to npm (`npm publish`)
+* Merge the `mb-pages` branch to `master`
+
+The CI server publishes builds to the Mapbox CDN automatically, but it does not currently support building tags. Therefore,
+to release a new version, push a _branch_ with a name of the form `vX.Y.Z`, with version matching package.json. Once the
+build is successful, delete the branch and replace it with a tag.
 
 ## [Style Reference](https://www.mapbox.com/mapbox-gl-style-spec/)
 

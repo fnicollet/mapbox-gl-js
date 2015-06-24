@@ -4,6 +4,7 @@ var util = require('../util/util');
 var Evented = require('../util/evented');
 var TilePyramid = require('./tile_pyramid');
 var Source = require('./source');
+var urlResolve = require('resolve-url');
 
 module.exports = GeoJSONSource;
 
@@ -11,8 +12,10 @@ module.exports = GeoJSONSource;
  * Create a GeoJSON data source instance given an options object
  * @class GeoJSONSource
  * @param {Object} [options]
- * @param {Object|String} options.data A GeoJSON data object or URL to it. The latter is preferable in case of large GeoJSON files.
- * @param {Number} [options.maxzoom=14] Maximum zoom to preserve detail at.
+ * @param {Object|string} options.data A GeoJSON data object or URL to it. The latter is preferable in case of large GeoJSON files.
+ * @param {number} [options.maxzoom=14] Maximum zoom to preserve detail at.
+ * @param {number} [options.buffer] Tile buffer on each side.
+ * @param {number} [options.tolerance] Simplification tolerance (higher means simpler).
  * @example
  * var sourceObj = new mapboxgl.GeoJSONSource({
  *    data: {
@@ -39,6 +42,10 @@ function GeoJSONSource(options) {
 
     if (options.maxzoom !== undefined) this.maxzoom = options.maxzoom;
 
+    this.geojsonVtOptions = { maxZoom: this.maxzoom };
+    if (options.buffer !== undefined) this.geojsonVtOptions.buffer = options.buffer;
+    if (options.tolerance !== undefined) this.geojsonVtOptions.tolerance = options.tolerance;
+
     this._pyramid = new TilePyramid({
         tileSize: 512,
         minzoom: this.minzoom,
@@ -60,7 +67,7 @@ GeoJSONSource.prototype = util.inherit(Evented, /** @lends GeoJSONSource.prototy
     /**
      * Update source geojson data and rerender map
      *
-     * @param {Object|String} data A GeoJSON data object or URL to it. The latter is preferable in case of large GeoJSON files.
+     * @param {Object|string} data A GeoJSON data object or URL to it. The latter is preferable in case of large GeoJSON files.
      * @returns {GeoJSONSource} this
      */
     setData: function(data) {
@@ -102,12 +109,15 @@ GeoJSONSource.prototype = util.inherit(Evented, /** @lends GeoJSONSource.prototy
 
     _updateData: function() {
         this._dirty = false;
-
+        var data = this._data;
+        if (typeof data === 'string') {
+            data = urlResolve(window.location.href, data);
+        }
         this.workerID = this.dispatcher.send('parse geojson', {
-            data: this._data,
+            data: data,
             tileSize: 512,
             source: this.id,
-            maxZoom: this.maxzoom
+            geojsonVtOptions: this.geojsonVtOptions
         }, function(err) {
 
             if (err) {

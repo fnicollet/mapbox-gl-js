@@ -1,6 +1,6 @@
 'use strict';
 
-var test = require('tape');
+var test = require('prova');
 var st = require('st');
 var http = require('http');
 var path = require('path');
@@ -443,6 +443,109 @@ test('Style#setLayoutProperty', function(t) {
             t.end();
         });
     });
+
+    t.test('fires a change event', function (t) {
+        // background layers do not have a source
+        var style = new Style({
+            "version": 7,
+            "sources": {},
+            "layers": [{
+                "id": "background",
+                "type": "background",
+                "layout": {
+                    "visibility": "none"
+                }
+            }]
+        });
+
+        style.on('load', function() {
+            style.on('change', function(e) {
+                t.ok(e, 'change event');
+
+                t.end();
+            });
+
+            style.setLayoutProperty('background', 'visibility', 'visible');
+
+        });
+    });
+
+    t.test('sets visibility on background layer', function (t) {
+        // background layers do not have a source
+        var style = new Style({
+            "version": 7,
+            "sources": {},
+            "layers": [{
+                "id": "background",
+                "type": "background",
+                "layout": {
+                    "visibility": "none"
+                }
+            }]
+        });
+
+        style.on('load', function() {
+            style.setLayoutProperty('background', 'visibility', 'visible');
+            t.deepEqual(style.getLayoutProperty('background', 'visibility'), 'visible');
+            t.end();
+        });
+    });
+    t.test('sets visibility on raster layer', function (t) {
+        var style = new Style({
+            "version": 7,
+            "sources": {
+                "mapbox://mapbox.satellite": {
+                    "type": "raster",
+                    "tiles": ["local://tiles/{z}-{x}-{y}.png"]
+                }
+            },
+            "layers": [{
+                "id": "satellite",
+                "type": "raster",
+                "source": "mapbox://mapbox.satellite",
+                "layout": {
+                    "visibility": "none"
+                }
+            }]
+        });
+
+        style.on('load', function() {
+            style.setLayoutProperty('satellite', 'visibility', 'visible');
+            t.deepEqual(style.getLayoutProperty('satellite', 'visibility'), 'visible');
+            t.end();
+        });
+    });
+    t.test('sets visibility on video layer', function (t) {
+        var style = new Style({
+            "version": 7,
+            "sources": {
+                "drone": {
+                    "type": "video",
+                    "url": [ "https://www.mapbox.com/drone/video/drone.mp4", "https://www.mapbox.com/drone/video/drone.webm" ],
+                    "coordinates": [
+                        [37.56238816766053, -122.51596391201019],
+                        [37.56410183312965, -122.51467645168304],
+                        [37.563391708549425, -122.51309394836426],
+                        [37.56161849366671, -122.51423120498657]
+                    ]
+                }
+            },
+            "layers": [{
+                "id": "shore",
+                "type": "raster",
+                "source": "drone",
+                "layout": {
+                    "visibility": "none"
+                }
+            }]
+        });
+
+        style.on('load', function() {
+            style.setLayoutProperty('shore', 'visibility', 'visible');
+            t.deepEqual(style.getLayoutProperty('shore', 'visibility'), 'visible');
+            t.end();
+        });
+    });
 });
 
 test('Style#setPaintProperty', function(t) {
@@ -465,6 +568,57 @@ test('Style#setPaintProperty', function(t) {
             style.setPaintProperty('background', 'background-color', 'red');
             t.deepEqual(style.getPaintProperty('background', 'background-color'), [1, 0, 0, 1]);
             t.end();
+        });
+    });
+});
+
+test('Style#featuresAt - race condition', function(t) {
+    var style = new Style({
+        "version": 7,
+        "sources": {
+            "mapbox": {
+                "type": "vector",
+                "tiles": ["local://tiles/{z}-{x}-{y}.vector.pbf"]
+            }
+        },
+        "layers": [{
+            "id": "land",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "water",
+            "layout": {
+                'line-cap': 'round'
+            },
+            "paint": {
+                "line-color": "red"
+            },
+            "something": "else"
+        }]
+    });
+
+    style.on('load', function() {
+        style._cascade([]);
+        style._recalculate(0);
+
+        style.sources.mapbox.featuresAt = function(position, params, callback) {
+            var features = [{
+                type: 'Feature',
+                layer: 'land',
+                geometry: { type: 'Polygon' }
+            }];
+
+            setTimeout(function() {
+                callback(null, features);
+            }, 10);
+        };
+
+        t.test('featuresAt race condition', function(t) {
+            style.featuresAt([256, 256], {}, function(err, results) {
+                t.error(err);
+                t.equal(results.length, 0);
+                t.end();
+            });
+            style.removeLayer('land');
         });
     });
 });
@@ -530,7 +684,9 @@ test('Style#featuresAt', function(t) {
                 });
             }
 
-            callback(null, features);
+            setTimeout(function() {
+                callback(null, features);
+            }, 10);
         };
 
         t.test('returns feature type', function(t) {
