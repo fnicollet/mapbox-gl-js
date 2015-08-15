@@ -47,7 +47,7 @@ styleBatch.prototype = {
             throw new Error('There is already a layer with this ID');
         }
         if (!(layer instanceof StyleLayer)) {
-            layer = new StyleLayer(layer, this._style.stylesheet.constants || {});
+            layer = new StyleLayer(layer);
         }
         this._style._layers[layer.id] = layer;
         this._style._order.splice(before ? this._style._order.indexOf(before) : Infinity, 0, layer.id);
@@ -110,6 +110,24 @@ styleBatch.prototype = {
     setFilter: function(layer, filter) {
         layer = this._style.getReferentLayer(layer);
         layer.filter = filter;
+
+        this._broadcastLayers = true;
+        if (layer.source) {
+            this._reloadSources[layer.source] = true;
+        }
+        this._change = true;
+
+        return this;
+    },
+
+    setLayerZoomRange: function(layerId, minzoom, maxzoom) {
+        var layer = this._style.getReferentLayer(layerId);
+        if (minzoom != null) {
+          layer.minzoom = minzoom;
+        }
+        if (maxzoom != null) {
+          layer.maxzoom = maxzoom;
+        }
 
         this._broadcastLayers = true;
         if (layer.source) {

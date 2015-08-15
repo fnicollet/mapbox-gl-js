@@ -26,11 +26,10 @@ function SymbolBucket(buffers, layoutProperties, overscaling, zoom, collisionDeb
     this.overscaling = overscaling;
     this.zoom = zoom;
     this.collisionDebug = collisionDebug;
-
     var tileSize = 512 * overscaling;
     var tileExtent = 4096;
     this.tilePixelRatio = tileExtent / tileSize;
-
+    this.compareText = {};
     this.symbolInstances = [];
 
 }
@@ -80,7 +79,7 @@ SymbolBucket.prototype.addFeatures = function(collisionTile) {
     var maxWidth = layout['symbol-placement'] !== 'line' ? layout['text-max-width'] * oneEm : 0;
     var spacing = layout['text-letter-spacing'] * oneEm;
     var textOffset = [layout['text-offset'][0] * oneEm, layout['text-offset'][1] * oneEm];
-    var fontstack = layout['text-font'];
+    var fontstack = layout['text-font'].join(',');
 
     var geometries = [];
     for (var g = 0; g < features.length; g++) {
@@ -138,10 +137,11 @@ SymbolBucket.prototype.addFeature = function(lines, shapedText, shapedIcon) {
 
     var glyphSize = 24;
 
-    var fontScale = layout['text-max-size'] / glyphSize,
+    var fontScale = layout['text-size'] / glyphSize,
         textBoxScale = this.tilePixelRatio * fontScale,
-        iconBoxScale = this.tilePixelRatio * layout['icon-max-size'],
-        symbolMinDistance = this.tilePixelRatio * layout['symbol-min-distance'],
+        textMaxBoxScale = this.tilePixelRatio * layout['text-max-size'] / glyphSize,
+        iconBoxScale = this.tilePixelRatio * layout['icon-size'],
+        symbolMinDistance = this.tilePixelRatio * layout['symbol-spacing'],
         avoidEdges = layout['symbol-avoid-edges'],
         textPadding = layout['text-padding'] * this.tilePixelRatio,
         iconPadding = layout['icon-padding'] * this.tilePixelRatio,
@@ -149,9 +149,11 @@ SymbolBucket.prototype.addFeature = function(lines, shapedText, shapedIcon) {
         textAlongLine = layout['text-rotation-alignment'] === 'map' && layout['symbol-placement'] === 'line',
         iconAlongLine = layout['icon-rotation-alignment'] === 'map' && layout['symbol-placement'] === 'line',
         mayOverlap = layout['text-allow-overlap'] || layout['icon-allow-overlap'] ||
-            layout['text-ignore-placement'] || layout['icon-ignore-placement'];
+            layout['text-ignore-placement'] || layout['icon-ignore-placement'],
+        isLine = layout['symbol-placement'] === 'line',
+        textRepeatDistance = symbolMinDistance / 2;
 
-    if (layout['symbol-placement'] === 'line') {
+    if (isLine) {
         lines = clipLine(lines, 0, 0, 4096, 4096);
     }
 
@@ -159,13 +161,19 @@ SymbolBucket.prototype.addFeature = function(lines, shapedText, shapedIcon) {
         var line = lines[i];
 
         // Calculate the anchor points around which you want to place labels
-        var anchors = layout['symbol-placement'] === 'line' ?
-            getAnchors(line, symbolMinDistance, textMaxAngle, shapedText, glyphSize, textBoxScale, this.overscaling) :
+        var anchors = isLine ?
+            getAnchors(line, symbolMinDistance, textMaxAngle, shapedText, shapedIcon, glyphSize, textMaxBoxScale, this.overscaling) :
             [ new Anchor(line[0].x, line[0].y, 0) ];
 
         // For each potential label, create the placement features used to check for collisions, and the quads use for rendering.
         for (var j = 0, len = anchors.length; j < len; j++) {
             var anchor = anchors[j];
+
+            if (shapedText && isLine) {
+                if (this.anchorIsTooClose(shapedText.text, textRepeatDistance, anchor)) {
+                    continue;
+                }
+            }
 
             var inside = !(anchor.x < 0 || anchor.x > 4096 || anchor.y < 0 || anchor.y > 4096);
 
@@ -189,6 +197,25 @@ SymbolBucket.prototype.addFeature = function(lines, shapedText, shapedIcon) {
     }
 };
 
+// Check if any other anchors with the same text are closer than repeatDistance
+SymbolBucket.prototype.anchorIsTooClose = function(text, repeatDistance, anchor) {
+    var compareText = this.compareText;
+    if (!(text in compareText)) {
+        compareText[text] = [];
+    } else {
+        var otherAnchors = compareText[text];
+        for (var k = otherAnchors.length - 1; k >= 0; k--) {
+            if (anchor.dist(otherAnchors[k]) < repeatDistance) {
+                // If it's within repeatDistance of one anchor, stop looking
+                return true;
+            }
+        }
+    }
+    // If anchor is not within repeatDistance of any other anchor, add to array
+    compareText[text].push(anchor);
+    return false;
+};
+
 SymbolBucket.prototype.placeFeatures = function(collisionTile, buffers, collisionDebug) {
 
     // Calculate which labels can be shown and when they can be shown and
@@ -204,6 +231,9 @@ SymbolBucket.prototype.placeFeatures = function(collisionTile, buffers, collisio
 
     var layout = this.layoutProperties;
     var maxScale = collisionTile.maxScale;
+
+    elementGroups.text['text-size'] = layout['text-size'];
+    elementGroups.icon['icon-size'] = layout['icon-size'];
 
     var textAlongLine = layout['text-rotation-alignment'] === 'map' && layout['symbol-placement'] === 'line';
     var iconAlongLine = layout['icon-rotation-alignment'] === 'map' && layout['symbol-placement'] === 'line';

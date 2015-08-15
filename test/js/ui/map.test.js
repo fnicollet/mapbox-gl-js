@@ -3,6 +3,7 @@
 var test = require('prova');
 var Map = require('../../../js/ui/map');
 var Style = require('../../../js/style/style');
+var LngLat = require('../../../js/geo/lng_lat');
 
 test('Map', function(t) {
     function createMap() {
@@ -29,7 +30,7 @@ test('Map', function(t) {
         t.test('returns self', function(t) {
             var map = createMap(),
                 style = {
-                    version: 7,
+                    version: 8,
                     sources: {},
                     layers: []
                 };
@@ -40,7 +41,7 @@ test('Map', function(t) {
         t.test('sets up event forwarding', function(t) {
             var map = createMap(),
                 style = new Style({
-                    version: 7,
+                    version: 8,
                     sources: {},
                     layers: []
                 });
@@ -84,8 +85,8 @@ test('Map', function(t) {
         t.test('can be called more than once', function(t) {
             var map = createMap();
 
-            map.setStyle({version: 7, sources: {}, layers: []});
-            map.setStyle({version: 7, sources: {}, layers: []});
+            map.setStyle({version: 8, sources: {}, layers: []});
+            map.setStyle({version: 8, sources: {}, layers: []});
 
             t.end();
         });
@@ -125,8 +126,8 @@ test('Map', function(t) {
 
     t.test('#getBounds', function(t) {
         var map = createMap();
-        t.deepEqual(parseFloat(map.getBounds().getCenter().lat.toFixed(10)), 0, 'getBounds');
         t.deepEqual(parseFloat(map.getBounds().getCenter().lng.toFixed(10)), 0, 'getBounds');
+        t.deepEqual(parseFloat(map.getBounds().getCenter().lat.toFixed(10)), 0, 'getBounds');
         t.end();
     });
 
@@ -188,14 +189,14 @@ test('Map', function(t) {
 
     t.test('#unproject', function(t) {
         var map = createMap();
-        t.deepEqual(map.unproject([100, 100]), { lat: 0, lng: 0 });
+        t.deepEqual(map.unproject([100, 100]), { lng: 0, lat: 0 });
         t.end();
     });
 
     t.test('#batch', function(t) {
         var map = createMap();
         map.setStyle({
-            version: 7,
+            version: 8,
             sources: {},
             layers: []
         });
@@ -204,6 +205,51 @@ test('Map', function(t) {
                 batch.addLayer({ id: 'background', type: 'background' });
             });
             t.ok(map.style.getLayer('background'), 'has background');
+
+            t.end();
+        });
+    });
+
+
+    t.test('#featuresAt', function(t) {
+        var map = createMap();
+        map.setStyle({
+            "version": 8,
+            "sources": {},
+            "layers": []
+        });
+
+        map.on('style.load', function() {
+            var callback = function () {};
+            var opts = {};
+
+            t.test('normal coords', function(t) {
+                map.style.featuresAt = function (coords, o, cb) {
+                    t.deepEqual(coords, { column: 0.5, row: 0.5, zoom: 0 });
+                    t.equal(o, opts);
+                    t.equal(cb, callback);
+
+                    t.end();
+                };
+
+                map.featuresAt(map.project(new LngLat(0, 0)), opts, callback);
+            });
+
+            t.test('wraps coords', function(t) {
+                map.style.featuresAt = function (coords, o, cb) {
+                    // avoid floating point issues
+                    t.equal(parseFloat(coords.column.toFixed(4)), 0.5);
+                    t.equal(coords.row, 0.5);
+                    t.equal(coords.zoom, 0);
+
+                    t.equal(o, opts);
+                    t.equal(cb, callback);
+
+                    t.end();
+                };
+
+                map.featuresAt(map.project(new LngLat(360, 0)), opts, callback);
+            });
 
             t.end();
         });

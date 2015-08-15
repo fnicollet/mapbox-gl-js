@@ -22,6 +22,7 @@ exports._loadTileJSON = function(options) {
             cacheSize: 20,
             minzoom: this.minzoom,
             maxzoom: this.maxzoom,
+            roundZoom: this.roundZoom,
             reparseOverscaled: this.reparseOverscaled,
             load: this._loadTile.bind(this),
             abort: this._abortTile.bind(this),
@@ -109,7 +110,8 @@ exports.create = function(source) {
         vector: require('./vector_tile_source'),
         raster: require('./raster_tile_source'),
         geojson: require('./geojson_source'),
-        video: require('./video_source')
+        video: require('./video_source'),
+        image: require('./image_source')
     };
 
     for (var type in sources) {
