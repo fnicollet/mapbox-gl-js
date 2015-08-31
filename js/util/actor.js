@@ -89,10 +89,13 @@ Actor.prototype.send = function(type, data, callback, buffers) {
 				}
 			  }
 			  , function (err) {
+				  var startTime = (new Date()).getTime();
 				  Utils.log("Generating tile " + path + " in download folder " + OfflineController.getDownloadPath() + "...");
 					window.osmandController.lib.generateTile(OfflineController.getDownloadPath(), path).then(
 					  function () {
-						  Utils.log("Finished generating tile : " + path);
+						  var endTime = (new Date()).getTime();
+					      var diff = endTime - startTime;
+					      Utils.log("Finished generating tile : " + path + " in " + diff + "ms");
 						  that.postMessage({ type: type, id: String(id), data: data }, buffers);
 					  }, function (error) {
 						Utils.log("Error while generating tile");

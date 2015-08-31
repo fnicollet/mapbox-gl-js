@@ -225,38 +225,17 @@ Style.prototype = util.inherit(Evented, {
     },
 
     addSource: function(id, source) {
-        if (this.sources[id] !== undefined) {
-            throw new Error('There is already a source with this ID');
-        }
-		
+	
 		// MOD FAB
         // dispatcher is messed up so reset
 		window.VectorTileSource = window.VectorTileSource || {};
         window.VectorTileSource.QUEUE = [];
         window.VectorTileSource.IS_EXECUTING = false;
-		
-        source = Source.create(source);
-        this.sources[id] = source;
-        source.id = id;
-        source.style = this;
-        source.dispatcher = this.dispatcher;
-        source.glyphAtlas = this.glyphAtlas;
-        source
-            .on('load', this._forwardSourceEvent)
-            .on('error', this._forwardSourceEvent)
-            .on('change', this._forwardSourceEvent)
-            .on('tile.add', this._forwardTileEvent)
-            .on('tile.load', this._forwardTileEvent)
-            .on('tile.error', this._forwardTileEvent)
-            .on('tile.remove', this._forwardTileEvent);
-        this.fire('source.add', {source: source});
-		
-		/*
+
 		// merged conflict from master, should be ok		
 		this.batch(function(batch) {
             batch.addSource(id, source);
         });
-		*/
         return this;
     },
 

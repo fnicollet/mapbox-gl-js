@@ -11,21 +11,21 @@ window.VectorTileSource = window.VectorTileSource || {};
 window.VectorTileSource.QUEUE = [];
 window.VectorTileSource.IS_EXECUTING = false;
 window.VectorTileSource.doNext = function() {
-	Utils.log("window.VectorTileSource.doNext. Queue size is " + window.VectorTileSource.QUEUE.length + ", isExecuting : " + window.VectorTileSource.IS_EXECUTING);
+	//Utils.log("window.VectorTileSource.doNext. Queue size is " + window.VectorTileSource.QUEUE.length + ", isExecuting : " + window.VectorTileSource.IS_EXECUTING);
   if (window.VectorTileSource.IS_EXECUTING || window.VectorTileSource.QUEUE.length == 0) {
     return;
   }
   window.VectorTileSource.IS_EXECUTING = true;
   var o = window.VectorTileSource.QUEUE.shift();
   var context = o.context;
-  Utils.log("window.VectorTileSource.doNext. Signal dispatched, queue is now " + window.VectorTileSource.QUEUE.length);
+  //Utils.log("window.VectorTileSource.doNext. Signal dispatched, queue is now " + window.VectorTileSource.QUEUE.length);
   // MOD FAB
   // TODO
   // RELOAD TILE IF workerID already specified
   context.workerID = o.dispatcher.send('load tile', o.params, o.callback); //context._loaded.bind(context));
 };
 window.VectorTileSource.addToQueue = function(context, dispatcher, params, callback) {
-  Utils.log("window.VectorTileSource.addToQueue: " + params.url);
+  //Utils.log("window.VectorTileSource.addToQueue: " + params.url);
   window.VectorTileSource.QUEUE.push({
     context: context,
     dispatcher: dispatcher,
@@ -102,7 +102,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
             collisionDebug: this.map.collisionDebug
         };
 
-		Utils.log("VectorTileSource._loadTile. Tile with url " + params.url);
+		//Utils.log("VectorTileSource._loadTile. Tile with url " + params.url);
 		
 		if (tile.zoom <= 8) {
 			if (tile.workerID) {
@@ -127,7 +127,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
 
     _tileLoaded: function(tile, err, data) {
         if (tile.aborted){
-			Utils.log("VectorTileSource._loadTile. tile.aborted");
+			//Utils.log("VectorTileSource._loadTile. tile.aborted");
             return;
 		}
         if (err) {
@@ -136,7 +136,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
             this.fire('tile.error', {tile: tile});
             return;
         }
-		Utils.log("VectorTileSource._loadTile. loadVectorData");
+		//Utils.log("VectorTileSource._loadTile. loadVectorData");
         tile.loadVectorData(data);
 
         if (tile.redoWhenDone) {
@@ -148,7 +148,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
     },
 
     _abortTile: function(tile) {
-		Utils.log("VectorTileSource._abortTile");
+		//Utils.log("VectorTileSource._abortTile");
         tile.aborted = true;
         this.dispatcher.send('abort tile', { uid: tile.uid, source: this.id }, null, tile.workerID);
     },

@@ -6,7 +6,8 @@ var normalizeURL = require('../util/mapbox').normalizeGlyphsURL;
 var getArrayBuffer = function (url, callback) {
     var orig = url;
     url = url.replace("ms-appx:///", OfflineController.getDownloadPath() + "\\").replace(/\//g, "\\");
-    Utils.log("Loading font from " + url);
+    //Utils.log("Loading font from " + url);
+	url = url.replace(",Arial", ", Arial");
     var f = Windows.Storage.StorageFile.getFileFromPathAsync(url);
     f.done(
     function (file) {
