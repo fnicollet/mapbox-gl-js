@@ -27,11 +27,14 @@ function normalizeURL(url, pathPrefix, accessToken) {
 }
 
 module.exports.normalizeStyleURL = function(url, accessToken) {
-    var user = url.match(/^mapbox:\/\/([^.]+)/);
-    if (!user)
+    if (!url.match(/^mapbox:\/\/styles\//))
         return url;
 
-    return normalizeURL(url, '/styles/v1/' + user[1] + '/', accessToken);
+    var split = url.split('/');
+    var user = split[3];
+    var style = split[4];
+    var draft = split[5] ? '/draft' : '';
+    return normalizeURL('mapbox://' + user + '/' + style + draft, '/styles/v1/', accessToken);
 };
 
 module.exports.normalizeSourceURL = function(url, accessToken) {
@@ -49,6 +52,17 @@ module.exports.normalizeGlyphsURL = function(url, accessToken) {
 
     var user = url.split('/')[3];
     return normalizeURL('mapbox://' + user + '/{fontstack}/{range}.pbf', '/fonts/v1/', accessToken);
+};
+
+module.exports.normalizeSpriteURL = function(url, format, ext, accessToken) {
+    if (!url.match(/^mapbox:\/\/sprites\//))
+        return url + format + ext;
+
+    var split = url.split('/');
+    var user = split[3];
+    var style = split[4];
+    var draft = split[5] ? '/draft' : '';
+    return normalizeURL('mapbox://' + user + '/' + style + draft + '/sprite' + format + ext, '/styles/v1/', accessToken);
 };
 
 module.exports.normalizeTileURL = function(url, sourceUrl) {

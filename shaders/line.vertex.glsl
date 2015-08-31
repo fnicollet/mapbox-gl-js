@@ -24,7 +24,7 @@ uniform mat2 u_antialiasingmatrix;
 varying vec2 v_normal;
 varying float v_linesofar;
 varying vec4 v_color;
-varying float gamma_scale;
+varying float v_gamma_scale;
 
 void main() {
     vec2 a_extrude = a_data.xy;
@@ -54,9 +54,9 @@ void main() {
     float squish_scale = length(a_extrude) / length(u_antialiasingmatrix * a_extrude);
 
     // how much features are squished in all directions by the perspectiveness
-    float perspective_scale = 1.0 / (1.0 - y * u_extra);
+    float perspective_scale = 1.0 / (1.0 - min(y * u_extra, 0.9));
 
-    gamma_scale = perspective_scale * squish_scale;
+    v_gamma_scale = perspective_scale * squish_scale;
 
     v_color = a_color;
 }

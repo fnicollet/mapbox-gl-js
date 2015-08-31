@@ -75,6 +75,7 @@ var Map = module.exports = function(options) {
         '_onSourceAdd',
         '_onSourceRemove',
         '_onSourceUpdate',
+        '_onWindowResize',
         'update',
         'render'
     ], this);
@@ -90,9 +91,7 @@ var Map = module.exports = function(options) {
     }.bind(this));
 
     if (typeof window !== 'undefined') {
-        window.addEventListener('resize', function () {
-            this.stop().resize().update();
-        }.bind(this), false);
+        window.addEventListener('resize', this._onWindowResize, false);
     }
 
     this.interaction = new Interaction(this);
@@ -279,7 +278,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
     },
 
     /**
-     * Get all features at a point ([x, y])
+     * Get all features at a point ([x, y]). Only works on layers where `interactive` is set to true.
      *
      * @param {Array<number>} point [x, y] pixel coordinates
      * @param {Object} params
@@ -701,6 +700,9 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
         browser.cancelFrame(this._frameId);
         clearTimeout(this._sourcesDirtyTimeout);
         this.setStyle(null);
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('resize', this._onWindowResize, false);
+        }
         return this;
     },
 
@@ -753,6 +755,10 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
     _onSourceUpdate: function(e) {
         this.update();
         this._forwardSourceEvent(e);
+    },
+
+    _onWindowResize: function() {
+        this.stop().resize().update();
     }
 });
 
