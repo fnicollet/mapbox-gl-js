@@ -112,8 +112,28 @@ VectorTileSource.prototype = util.inherit(Evented, {
 			}
 		} else {
 			// MOD FAB
-			window.VectorTileSource.addToQueue(this, this.dispatcher, params, this._tileLoadedLocal.bind(this, tile));
-			window.VectorTileSource.doNext();
+		    var that = this;
+		    var url = params.url;
+		    var urlSplit = url.split("/");
+		    var lastSplit = urlSplit[urlSplit.length - 1];
+		    var fileName = lastSplit.split("?")[0].replace(".vector", "");
+		    // window.mapController.currentBaseMapId
+		    var path = "Vector_Bright" + "\\" + urlSplit[urlSplit.length - 3] + "\\" + urlSplit[urlSplit.length - 2] + "\\" + fileName;
+		    if (VectorTileSource.offlineFolderReference) {
+		        VectorTileSource.offlineFolderReference.getFileAsync(path).then(function () {
+		            tile.workerID = that.dispatcher.send('load tile', params, that._tileLoaded.bind(that, tile));
+		        }, function () {
+		            window.VectorTileSource.addToQueue(that, that.dispatcher, params, that._tileLoadedLocal.bind(that, tile));
+		            window.VectorTileSource.doNext();
+		        });
+		    } else {
+		        window.VectorTileSource.addToQueue(that, that.dispatcher, params, that._tileLoadedLocal.bind(that, tile));
+		        window.VectorTileSource.doNext();
+                // delay until the next tile, rather than for each tile
+		        window.offlineController.getStorageFolder(function (folder) {
+		            VectorTileSource.offlineFolderReference = folder;
+		        });
+		    }
 		}
     },
 	

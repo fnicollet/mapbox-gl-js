@@ -43,7 +43,7 @@ Actor.prototype.receive = function(message) {
         this.parent[data.type](data.data);
     }
 };
-
+Actor.offlineFolderReference = null;
 Actor.prototype.send = function(type, data, callback, buffers) {
     var id = null;
     if (callback) this.callbacks[id = this.callbackID++] = callback;
@@ -58,9 +58,12 @@ Actor.prototype.send = function(type, data, callback, buffers) {
 	  // window.mapController.currentBaseMapId
 	  var path = "Vector_Bright" + "\\" + urlSplit[urlSplit.length - 3] + "\\" + urlSplit[urlSplit.length - 2] + "\\" + fileName;
 	  var fullPath = OfflineController.getDownloadPath() + "\\" + path;
-	  if (path != "Vector_Bright\\15\\16827\\11686.pbf"){
+      /*
+	  if (path != "Vector_Bright\\12\\1315\\1415.pbf") { // should be land
+	  //if (path != "Vector_Bright\\12\\1321\\1413.pbf") { // should be water
         //return;
 	  }
+      */
 	  data.options = {
 		  isOnline: false,
 		  basePath: OfflineController.getDownloadPath(),
@@ -69,51 +72,67 @@ Actor.prototype.send = function(type, data, callback, buffers) {
 		  path: fullPath
 	  };
 	  if (data.options.hasWriteAccess) {
-		  var that = this;
-		  var f = Windows.Storage.StorageFile.getFileFromPathAsync(fullPath);
-		  f.done(
-			  function (file) {
-				var RESET_TILES = false;
-				if (RESET_TILES){
-					window.osmandController.lib.generateTile(OfflineController.getDownloadPath(), path).then(function() {
-					  that.postMessage({
-						  type: type,
-							  id: String(id),
-							  data: data
-					  }, buffers);
-					});
-				} else {
-					Utils.log("Already generated tile " + path + " in download folder " + OfflineController.getDownloadPath() + " ...");
-					// file exists, let the worker load it
-				  that.postMessage({ type: type, id: String(id), data: data }, buffers);
-				}
-			  }
-			  , function (err) {
-				  var startTime = (new Date()).getTime();
-				  Utils.log("Generating tile " + path + " in download folder " + OfflineController.getDownloadPath() + "...");
-					window.osmandController.lib.generateTile(OfflineController.getDownloadPath(), path).then(
-					  function () {
-						  var endTime = (new Date()).getTime();
-					      var diff = endTime - startTime;
-					      Utils.log("Finished generating tile : " + path + " in " + diff + "ms");
-						  that.postMessage({ type: type, id: String(id), data: data }, buffers);
-					  }, function (error) {
-						Utils.log("Error while generating tile");
-						Utils.logError(error);
-						that.postMessage({
-							type: type,
-							id: String(id),
-							data: data
-						}, buffers);
-					}
-				  );
-			  });
-
+	      var that = this;
+	      if (Actor.offlineFolderReference) {
+	          that.generateTile(type, id, data, buffers, path);
+	      } else {
+	          window.offlineController.getStorageFolder(function (folder) {
+	              Actor.offlineFolderReference = folder;
+                  that.generateTile(type, id, data, buffers, path);
+	          });
+	      }
 	  }
 	  return;
 	}
 	
     this.postMessage({ type: type, id: String(id), data: data }, buffers);
+};
+
+
+Actor.prototype.generateTile = function (type, id, data, buffers, path) {
+    var that = this;
+    var start = (new Date()).getTime();
+    var end = null;
+    var folder = Actor.offlineFolderReference;
+    var pathSplit = path.split("\\");
+    var styleName = pathSplit[0];
+    var zStr = pathSplit[1];
+    var xStr = pathSplit[2];
+    var yStr = pathSplit[3].split('.')[0];
+    var z = parseInt(zStr);
+    var x = parseInt(xStr);
+    var y = parseInt(yStr);
+    if (z <= 8) {
+        // file exists, let the worker load it
+        that.postMessage({ type: type, id: String(id), data: data }, buffers);
+        return;
+    }
+    folder.createFileAsync(path, Windows.Storage.CreationCollisionOption.failIfExists).done(
+      function () {
+          // file just created, create the tile
+          //end = (new Date()).getTime();
+          //Utils.log("file just created (" + (end - start) + "ms) in: " + path);
+          window.osmandController.lib.generateTile(OfflineController.getDownloadPath() + "\\" + path, x, y, z).then(
+            function () {
+                end = (new Date()).getTime();
+                Utils.log("Finished generating tile #" + data.id + "  in (" + (end - start) + "ms) : " + path);
+                that.postMessage({ type: type, id: String(id), data: data }, buffers);
+            }, function (error) {
+                Utils.log("Error while generating tile");
+                Utils.logError(error);
+                that.postMessage({
+                    type: type,
+                    id: String(id),
+                    data: data
+                }, buffers);
+            });
+      },
+      function (error) {
+          // Utils.log("Already generated tile " + path + " in download folder " + OfflineController.getDownloadPath() + " ...");
+          // file exists, let the worker load it
+          that.postMessage({ type: type, id: String(id), data: data }, buffers);
+      }
+    );
 };
 
 /**
