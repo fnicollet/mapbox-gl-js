@@ -18,6 +18,8 @@ function Actor(target, parent) {
     this.callbacks = {};
     this.callbackID = 0;
     this.receive = this.receive.bind(this);
+	// MOD FAB
+    // "WEBWORKER-TMP"
     this.target.addEventListener('message', this.receive, false);
 }
 
@@ -115,7 +117,7 @@ Actor.prototype.generateTile = function (type, id, data, buffers, path) {
           window.osmandController.lib.generateTile(OfflineController.getDownloadPath() + "\\" + path, x, y, z).then(
             function () {
                 end = (new Date()).getTime();
-                Utils.log("Finished generating tile #" + data.id + "  in (" + (end - start) + "ms) : " + path);
+                Utils.log("Finished generating tile #" + id + "  in (" + (end - start) + "ms) : " + path);
                 that.postMessage({ type: type, id: String(id), data: data }, buffers);
             }, function (error) {
                 Utils.log("Error while generating tile");
@@ -144,6 +146,9 @@ Actor.prototype.generateTile = function (type, id, data, buffers, path) {
  * @private
  */
 Actor.prototype.postMessage = function(message, transferList) {
+	// MOD FAB
+    // "WEBWORKER-TMP"
+    //return;
     try {
         this.target.postMessage(message, transferList);
     } catch (e) {

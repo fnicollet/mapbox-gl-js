@@ -168,7 +168,16 @@ VectorTileSource.prototype = util.inherit(Evented, {
     },
 
     _abortTile: function(tile) {
-		//Utils.log("VectorTileSource._abortTile");
+		// Utils.log("VectorTileSource trying to abort tile #" + tile.uid);
+	    // remove from QUEUE if existing
+	    for (var i = 0, l = window.VectorTileSource.QUEUE.length; i < l; i++) {
+	        var item = window.VectorTileSource.QUEUE[i];
+	        if (item.params.uid == tile.uid) {
+	            // Utils.log("VectorTileSource ABORTED #" + tile.uid);
+	            window.VectorTileSource.QUEUE.splice(i, 1);
+	            break;
+	        }
+	    }
         tile.aborted = true;
         this.dispatcher.send('abort tile', { uid: tile.uid, source: this.id }, null, tile.workerID);
     },
