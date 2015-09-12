@@ -48,7 +48,7 @@ function Style(stylesheet, animationLoop) {
         var valid = validate(stylesheet);
         if (valid.length) {
             for (var i = 0; i < valid.length; i++) {
-                this.fire('error', { error: valid[i] });
+                this.fire('error', { error: new Error(valid[i].message) });
             }
             return;
         }
@@ -349,14 +349,6 @@ Style.prototype = util.inherit(Evented, {
         return this.getReferentLayer(layer).filter;
     },
 
-    setLayoutProperty: function(layer, name, value) {
-        this.batch(function(batch) {
-            batch.setLayoutProperty(layer, name, value);
-        });
-
-        return this;
-    },
-
     /**
      * Get a layout property's value from a given layer
      * @param {string} layer the layer to inspect
@@ -366,14 +358,6 @@ Style.prototype = util.inherit(Evented, {
      */
     getLayoutProperty: function(layer, name) {
         return this.getReferentLayer(layer).getLayoutProperty(name);
-    },
-
-    setPaintProperty: function(layer, name, value, klass) {
-        this.batch(function(batch) {
-            batch.setPaintProperty(layer, name, value, klass);
-        });
-
-        return this;
     },
 
     getPaintProperty: function(layer, name, klass) {
@@ -391,6 +375,35 @@ Style.prototype = util.inherit(Evented, {
         util.asyncEach(Object.keys(this.sources), function(id, callback) {
             var source = this.sources[id];
             source.featuresAt(coord, params, function(err, result) {
+                if (result) features = features.concat(result);
+                if (err) error = err;
+                callback();
+            });
+        }.bind(this), function() {
+            if (error) return callback(error);
+
+            callback(null, features
+                .filter(function(feature) {
+                    return this._layers[feature.layer] !== undefined;
+                }.bind(this))
+                .map(function(feature) {
+                    feature.layer = this._layers[feature.layer].json();
+                    return feature;
+                }.bind(this)));
+        }.bind(this));
+    },
+
+    featuresIn: function(bbox, params, callback) {
+        var features = [];
+        var error = null;
+
+        if (params.layer) {
+            params.layer = { id: params.layer };
+        }
+
+        util.asyncEach(Object.keys(this.sources), function(id, callback) {
+            var source = this.sources[id];
+            source.featuresIn(bbox, params, function(err, result) {
                 if (result) features = features.concat(result);
                 if (err) error = err;
                 callback();
