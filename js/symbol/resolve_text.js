@@ -76,7 +76,6 @@ function resolveText(features, layoutProperties, glyphs) {
 // MOD FAB
 // https://github.com/mapbox/mapbox-gl-js/pull/705
 function isRTL(s) {
-    return false;
     var rtlChars = '\u0591-\u07FF\u200F\u202B\u202E\uFB1D-\uFDFD\uFE70-\uFEFC',
     rtlDirCheck = new RegExp('^[^' + rtlChars + ']*?[' + rtlChars + ']');
     return rtlDirCheck.test(s);
