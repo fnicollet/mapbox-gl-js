@@ -10,6 +10,7 @@ window.VectorTileSource = window.VectorTileSource || {};
 
 window.VectorTileSource.QUEUE = [];
 window.VectorTileSource.IS_EXECUTING = false;
+window.VectorTileSource.TO_ABORT_QUEUE = [];
 window.VectorTileSource.doNext = function() {
 	//Utils.log("window.VectorTileSource.doNext. Queue size is " + window.VectorTileSource.QUEUE.length + ", isExecuting : " + window.VectorTileSource.IS_EXECUTING);
   if (window.VectorTileSource.IS_EXECUTING || window.VectorTileSource.QUEUE.length == 0) {
@@ -122,8 +123,20 @@ VectorTileSource.prototype = util.inherit(Evented, {
 		    var path = "Vector_Bright" + "\\" + urlSplit[urlSplit.length - 3] + "\\" + urlSplit[urlSplit.length - 2] + "\\" + fileName;
 		    if (VectorTileSource.offlineFolderReference) {
 		        VectorTileSource.offlineFolderReference.getFileAsync(path).then(function () {
+					var abortIdx = window.VectorTileSource.TO_ABORT_QUEUE.indexOf(tile.uid);
+		            if (abortIdx != -1) {
+		                //Utils.log("VectorTileSource._loadTile. ABORTED");
+		                window.VectorTileSource.TO_ABORT_QUEUE.splice(abortIdx, 1);
+		                return;
+		            }
 		            tile.workerID = that.dispatcher.send('load tile', params, that._tileLoaded.bind(that, tile));
 		        }, function () {
+					var abortIdx = window.VectorTileSource.TO_ABORT_QUEUE.indexOf(tile.uid);
+		            if (abortIdx != -1) {
+		                //Utils.log("VectorTileSource._loadTile. ABORTED");
+		                window.VectorTileSource.TO_ABORT_QUEUE.splice(abortIdx, 1);
+		                return;
+		            }
 		            window.VectorTileSource.addToQueue(that, that.dispatcher, params, that._tileLoadedLocal.bind(that, tile));
 		            window.VectorTileSource.doNext();
 		        });
@@ -171,14 +184,20 @@ VectorTileSource.prototype = util.inherit(Evented, {
     _abortTile: function(tile) {
 		// Utils.log("VectorTileSource trying to abort tile #" + tile.uid);
 	    // remove from QUEUE if existing
+		var found = false;
 	    for (var i = 0, l = window.VectorTileSource.QUEUE.length; i < l; i++) {
 	        var item = window.VectorTileSource.QUEUE[i];
 	        if (item.params.uid == tile.uid) {
 	            // Utils.log("VectorTileSource ABORTED #" + tile.uid);
 	            window.VectorTileSource.QUEUE.splice(i, 1);
+				found = true;
 	            break;
 	        }
 	    }
+		if (!found) {
+            //Utils.log("VectorTileSource couldn't abort tile #" + tile.uid);
+            window.VectorTileSource.TO_ABORT_QUEUE.push(tile.uid)
+        }
         tile.aborted = true;
         this.dispatcher.send('abort tile', { uid: tile.uid, source: this.id }, null, tile.workerID);
     },
