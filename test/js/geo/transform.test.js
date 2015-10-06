@@ -4,7 +4,6 @@ var test = require('prova');
 var Point = require('point-geometry');
 var Transform = require('../../../js/geo/transform');
 var LngLat = require('../../../js/geo/lng_lat');
-var VertexBuffer = require('../../../js/data/buffer/line_vertex_buffer');
 
 var fixed = require('../../testutil/fixed');
 var fixedLngLat = fixed.LngLat;
@@ -14,8 +13,8 @@ test('transform', function(t) {
 
     t.test('creates a transform', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
+        t.equal(transform.unmodified, true);
         t.equal(transform.tileSize, 512, 'tileSize');
         t.equal(transform.worldSize, 512, 'worldSize');
         t.equal(transform.width, 500, 'width');
@@ -24,6 +23,7 @@ test('transform', function(t) {
         t.equal(transform.bearing = 1, 1, 'set bearing');
         t.equal(transform.bearing, 1, 'bearing');
         t.equal(transform.bearing = 0, 0, 'set bearing');
+        t.equal(transform.unmodified, false);
         t.equal(transform.minZoom = 10, 10);
         t.equal(transform.maxZoom = 10, 10);
         t.equal(transform.minZoom, 10);
@@ -46,8 +46,7 @@ test('transform', function(t) {
 
     t.test('panBy', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
         transform.latRange = undefined;
         t.deepEqual(transform.center, { lng: 0, lat: 0 });
         t.equal(transform.panBy(new Point(10, 10)), undefined);
@@ -57,8 +56,7 @@ test('transform', function(t) {
 
     t.test('setZoomAround', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
         t.deepEqual(transform.center, { lng: 0, lat: 0 });
         t.equal(transform.zoom, 0);
         t.equal(transform.setZoomAround(10, transform.pointLocation(new Point(10, 10))), undefined);
@@ -69,8 +67,7 @@ test('transform', function(t) {
 
     t.test('setZoomAround tilted', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
         transform.pitch = 50;
         transform.zoom = 4;
         t.deepEqual(transform.center, { lng: 0, lat: 0 });
@@ -83,8 +80,7 @@ test('transform', function(t) {
 
     t.test('setLocationAt', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
         transform.zoom = 4;
         t.deepEqual(transform.center, { lng: 0, lat: 0 });
         transform.setLocationAtPoint({ lng: 13, lat: 10 }, new Point(15, 45));
@@ -94,8 +90,7 @@ test('transform', function(t) {
 
     t.test('setLocationAt tilted', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
         transform.zoom = 4;
         transform.pitch = 50;
         t.deepEqual(transform.center, { lng: 0, lat: 0 });
@@ -106,30 +101,31 @@ test('transform', function(t) {
 
     t.test('has a default zoom', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
+        transform.resize(500, 500);
         t.equal(transform.tileZoom, 0);
         t.equal(transform.tileZoom, transform.zoom);
         t.end();
     });
 
-    t.test('lngRange', function(t) {
+    t.test('lngRange & latRange constrain zoom and center', function(t) {
         var transform = new Transform();
-        transform.width = 500;
-        transform.height = 500;
-        transform.lngRange = [-10, 10];
-        t.equal(transform.tileZoom, 0);
-        t.equal(transform.tileZoom, transform.zoom);
-        t.equal(transform.zoom, 0);
-        t.end();
-    });
-});
+        transform.center = new LngLat(0, 0);
+        transform.zoom = 10;
+        transform.resize(500, 500);
 
-test('vertex buffer', function(t) {
-    t.test('is initialized', function(t) {
-        var buf = new VertexBuffer();
-        t.deepEqual(buf.index, 0);
-        t.deepEqual(buf.length, 32768);
+        transform.lngRange = [-5, 5];
+        transform.latRange = [-5, 5];
+
+        transform.zoom = 0;
+        t.equal(transform.zoom, 5.135709286104402);
+
+        transform.center = new LngLat(-50, -30);
+        t.same(transform.center, new LngLat(0, -0.006358305286099153));
+
+        transform.zoom = 10;
+        transform.center = new LngLat(-50, -30);
+        t.same(transform.center, new LngLat(-4.828338623046875, -4.828969771321582));
+
         t.end();
     });
 });

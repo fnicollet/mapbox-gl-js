@@ -2,7 +2,7 @@
 
 var Map = require('../js/ui/map');
 var browser = require('../js/util/browser');
-var suite = require('mapbox-gl-test-suite');
+var suite = require('mapbox-gl-test-suite').render;
 
 var tests;
 

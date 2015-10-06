@@ -388,13 +388,13 @@ util.extend(Camera.prototype, /** @lends Map.prototype */{
             bearingChanged = false,
             pitchChanged = false;
 
-        if ('center' in options) {
-            tr.center = LngLat.convert(options.center);
-        }
-
         if ('zoom' in options && tr.zoom !== +options.zoom) {
             zoomChanged = true;
             tr.zoom = +options.zoom;
+        }
+
+        if ('center' in options) {
+            tr.center = LngLat.convert(options.center);
         }
 
         if ('bearing' in options && tr.bearing !== +options.bearing) {
@@ -426,7 +426,9 @@ util.extend(Camera.prototype, /** @lends Map.prototype */{
     },
 
     /**
-     * Easing animation to a specified location/zoom/bearing
+     * Change any combination of center, zoom, bearing, and pitch, with a smooth animation
+     * between old and new values. The map will retain the current values for any options
+     * not included in `options`.
      *
      * @param {CameraOptions|AnimationOptions} options map view and animation options
      * @fires movestart
@@ -623,7 +625,7 @@ util.extend(Camera.prototype, /** @lends Map.prototype */{
      */
     stop: function() {
         if (this._abortFn) {
-            this._abortFn.call(this);
+            this._abortFn();
             this._finishEase();
         }
         return this;

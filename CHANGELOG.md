@@ -2,6 +2,47 @@
 
 An in-progress version being developed in the `master` branch.
 
+## 0.11.1 (Sep 30 2015)
+
+#### Bugfixes
+
+* Add statistics and checkboxes to debug page
+* Fix `Map#featuresAt` for non-4096 vector sources (#1529)
+* Don't fire `mousemove` on drag-pan
+* Fix maxBounds constrains (#1539)
+* Fix maxBounds infinite loop (#1538)
+* Fix memory leak in worker
+* Assert valid `TileCoord`, fix wrap calculation in `TileCoord#cover` (#1483)
+* Abort raster tile load if not in viewport (#1490)
+
+#### API Improvements
+
+* Add `Map` event listeners for `mouseup`, `contextmenu` (right click) (#1532)
+
+
+## 0.11.0 (Sep 11 2015)
+
+#### API Improvements
+
+* Add `Map#featuresIn`: a bounding-box feature query
+* Emit stylesheet validation errors (#1436)
+
+#### UX Improvements
+
+* Handle v8 style `center`, `zoom`, `bearing`, `pitch` (#1452)
+* Improve circle type styling (#1446)
+* Improve dashed and patterned line antialiasing
+
+#### Bugfixes
+
+* Load images in a way that respects Cache-Control headers
+* Filter for rtree matches to those crossing bbox
+* Log errors by default (#1463)
+* Fixed modification of `text-size` via `setLayoutProperty` (#1451)
+* Throw on lat > 90 || < -90. (#1443)
+* Fix circle clipping bug (#1457)
+
+
 ## 0.10.0 (Aug 21 2015)
 
 #### Breaking changes
@@ -61,10 +102,10 @@ An in-progress version being developed in the `master` branch.
 * Expose `geojson-vt` options for GeoJSON sources (#1271)
 * bearing snaps to "North" within a tolerance of 7 degrees (#1059)
 * Now you can directly mutate the minzoom and maxzoom layer properties with `map.setLayerZoomRange(layerId, minzoom, maxzoom)`
-* Exposed `mapboxgl.Control`, a base class used by all UI controls 
+* Exposed `mapboxgl.Control`, a base class used by all UI controls
 * Refactored handlers to be individually included in Map options, or enable/disable them individually at runtime, e.g. `map.scrollZoom.disable()`.
 * New feature: Batch operations can now be done at once, improving performance for calling multiple style functions: (#1352)
-  
+
   ```js
   style.batch(function(s) {
       s.addLayer({ id: 'first', type: 'symbol', source: 'streets' });

@@ -2,7 +2,7 @@
 
 var FeatureTree = require('../data/feature_tree');
 var CollisionTile = require('../symbol/collision_tile');
-var BufferSet = require('../data/buffer/buffer_set');
+var BufferSet = require('../data/buffer_set');
 var createBucket = require('../data/create_bucket');
 
 module.exports = WorkerTile;
@@ -35,7 +35,8 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
         buffers = new BufferSet(),
         collisionTile = new CollisionTile(this.angle, this.pitch),
         buckets = {},
-        bucketsInOrder = this.bucketsInOrder = [],
+        symbolBuckets = this.symbolBuckets = [],
+        otherBuckets = [],
         bucketsBySourceLayer = {};
 
     // Map non-ref layers to buckets.
@@ -49,7 +50,7 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
             continue;
 
         var minzoom = layer.minzoom;
-        if (minzoom && this.zoom < minzoom && minzoom < this.maxZoom)
+        if (minzoom && this.zoom < minzoom)
             continue;
 
         var maxzoom = layer.maxzoom;
@@ -64,7 +65,11 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
         bucket.layers = [layer.id];
 
         buckets[bucket.id] = bucket;
-        bucketsInOrder.push(bucket);
+
+        if (bucket.type === 'symbol')
+            symbolBuckets.push(bucket);
+        else
+            otherBuckets.push(bucket);
 
         if (data.layers) {
             // vectortile
@@ -123,80 +128,77 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
         }
     }
 
-    var prevPlacementBucket;
-    var remaining = bucketsInOrder.length;
+    var icons = {},
+        stacks = {};
 
-    /*
-     *  The async parsing here is a bit tricky.
-     *  Some buckets depend on resources that may need to be loaded async (glyphs).
-     *  Some buckets need to be parsed in order (to get collision priorities right).
-     *
-     *  Dependencies calls are initiated first to get those rolling.
-     *  Buckets that don't need to be parsed in order, aren't to save time.
-     */
+    if (symbolBuckets.length > 0) {
 
-    for (i = bucketsInOrder.length - 1; i >= 0; i--) {
-        bucket = bucketsInOrder[i];
-
-        // Link buckets that need to be parsed in order
-        if (bucket.needsPlacement) {
-            if (prevPlacementBucket) {
-                prevPlacementBucket.next = bucket;
-            } else {
-                bucket.previousPlaced = true;
-            }
-            prevPlacementBucket = bucket;
+        // Get dependencies for symbol buckets
+        for (i = symbolBuckets.length - 1; i >= 0; i--) {
+            symbolBuckets[i].updateIcons(icons);
+            symbolBuckets[i].updateFont(stacks);
         }
 
-        if (bucket.getDependencies) {
-            bucket.getDependencies(this, actor, dependenciesDone(bucket));
+        for (var fontName in stacks) {
+            stacks[fontName] = Object.keys(stacks[fontName]).map(Number);
         }
+        icons = Object.keys(icons);
 
-        // immediately parse buckets where order doesn't matter and no dependencies
-        if (!bucket.needsPlacement && !bucket.getDependencies) {
-            parseBucket(tile, bucket);
+        var deps = 0;
+
+        actor.send('get glyphs', {uid: tile.uid, stacks: stacks}, function(err, newStacks) {
+            stacks = newStacks;
+            gotDependency(err);
+        });
+
+        if (icons.length) {
+            actor.send('get icons', {icons: icons}, function(err, newIcons) {
+                icons = newIcons;
+                gotDependency(err);
+            });
+        } else {
+            gotDependency();
         }
     }
 
-    function dependenciesDone(bucket) {
-        return function(err) {
-            bucket.dependenciesLoaded = true;
-            parseBucket(tile, bucket, err);
-        };
+    // immediately parse non-symbol buckets (they have no dependencies)
+    for (i = otherBuckets.length - 1; i >= 0; i--) {
+        parseBucket(tile, otherBuckets[i]);
     }
 
-    function parseBucket(tile, bucket, skip) {
-        if (bucket.getDependencies && !bucket.dependenciesLoaded) return;
-        if (bucket.needsPlacement && !bucket.previousPlaced) return;
+    if (symbolBuckets.length === 0)
+        return done();
 
-        if (!skip) {
-            var now = Date.now();
-            if (bucket.features.length) bucket.addFeatures(collisionTile);
-            var time = Date.now() - now;
-            if (bucket.interactive) {
-                for (var i = 0; i < bucket.features.length; i++) {
-                    var feature = bucket.features[i];
-                    tile.featureTree.insert(feature.bbox(), bucket.layers, feature);
-                }
+    function gotDependency(err) {
+        if (err) return callback(err);
+        deps++;
+        if (deps === 2) {
+            // all symbol bucket dependencies fetched; parse them in proper order
+            for (var i = symbolBuckets.length - 1; i >= 0; i--) {
+                parseBucket(tile, symbolBuckets[i]);
             }
-            if (typeof self !== 'undefined') {
-                self.bucketStats = self.bucketStats || {_total: 0};
-                self.bucketStats._total += time;
-                self.bucketStats[bucket.id] = (self.bucketStats[bucket.id] || 0) + time;
-            }
-        }
-
-        remaining--;
-
-        if (!remaining) {
             done();
-            return;
+        }
+    }
+
+    function parseBucket(tile, bucket) {
+        var now = Date.now();
+        if (bucket.features.length) bucket.addFeatures(collisionTile, stacks, icons);
+        var time = Date.now() - now;
+
+        if (bucket.interactive) {
+            for (var i = 0; i < bucket.features.length; i++) {
+                var feature = bucket.features[i];
+                tile.featureTree.insert(feature.bbox(), bucket.layers, feature);
+            }
         }
 
-        // try parsing the next bucket, if it is ready
-        if (bucket.next) {
-            bucket.next.previousPlaced = true;
-            parseBucket(tile, bucket.next);
+        bucket.features = null;
+
+        if (typeof self !== 'undefined') {
+            self.bucketStats = self.bucketStats || {_total: 0};
+            self.bucketStats._total += time;
+            self.bucketStats[bucket.id] = (self.bucketStats[bucket.id] || 0) + time;
         }
     }
 
@@ -215,7 +217,11 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
             elementGroups = {};
 
         for (k in buffers) {
-            transferables.push(buffers[k].array);
+            transferables.push(buffers[k].arrayBuffer);
+
+            // The Buffer::push method is generated with "new Function(...)"
+            // and not transferrable.
+            delete buffers[k].push;
         }
 
         for (k in buckets) {
@@ -225,7 +231,8 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
         callback(null, {
             elementGroups: elementGroups,
             buffers: buffers,
-            extent: extent
+            extent: extent,
+            bucketStats: typeof self !== 'undefined' ? self.bucketStats : null
         }, transferables);
     }
 };
@@ -243,18 +250,20 @@ WorkerTile.prototype.redoPlacement = function(angle, pitch, collisionDebug) {
     var elementGroups = {};
     var collisionTile = new CollisionTile(angle, pitch);
 
-    var bucketsInOrder = this.bucketsInOrder;
-    for (var i = bucketsInOrder.length - 1; i >= 0; i--) {
-        var bucket = bucketsInOrder[i];
+    var symbolBuckets = this.symbolBuckets;
+    for (var i = symbolBuckets.length - 1; i >= 0; i--) {
+        var bucket = symbolBuckets[i];
 
-        if (bucket.type === 'symbol') {
-            bucket.placeFeatures(collisionTile, buffers, collisionDebug);
-            elementGroups[bucket.id] = bucket.elementGroups;
-        }
+        bucket.placeFeatures(collisionTile, buffers, collisionDebug);
+        elementGroups[bucket.id] = bucket.elementGroups;
     }
 
     for (var k in buffers) {
-        transferables.push(buffers[k].array);
+        transferables.push(buffers[k].arrayBuffer);
+
+        // The Buffer::push method is generated with "new Function(...)"
+        // and not transferrable.
+        delete buffers[k].push;
     }
 
     return {

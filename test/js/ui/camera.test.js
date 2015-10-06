@@ -13,8 +13,7 @@ test('camera', function(t) {
         var camera = new Camera();
 
         var transform = camera.transform = new Transform(0, 20);
-        transform.width = 512;
-        transform.height = 512;
+        transform.resize(512, 512);
 
         util.extend(camera, Evented);
 
@@ -26,7 +25,8 @@ test('camera', function(t) {
     }
 
     t.test('#jumpTo', function(t) {
-        var camera = createCamera();
+        // Choose initial zoom to avoid center being constrained by mercator latitude limits.
+        var camera = createCamera({zoom: 1});
 
         t.test('sets center', function(t) {
             camera.jumpTo({center: [1, 2]});
@@ -112,7 +112,8 @@ test('camera', function(t) {
     });
 
     t.test('#setCenter', function(t) {
-        var camera = createCamera();
+        // Choose initial zoom to avoid center being constrained by mercator latitude limits.
+        var camera = createCamera({zoom: 1});
 
         t.test('sets center', function(t) {
             camera.setCenter([1, 2]);
