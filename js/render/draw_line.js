@@ -2,6 +2,7 @@
 
 var browser = require('../util/browser');
 var mat2 = require('gl-matrix').mat2;
+var util = require('../util/util');
 
 /**
  * Draw a line. Under the hood this will read elements from
@@ -18,13 +19,9 @@ module.exports = function drawLine(painter, source, layer, coords) {
     painter.setDepthSublayer(0);
     painter.depthMask(false);
 
-    var hasData = false;
-    for (var j = 0; j < coords.length; j++) {
-        if (source.getTile(coords[j]).hasLayerData(layer)) {
-            hasData = true;
-            break;
-        }
-    }
+    var hasData = coords.some(function(coord) {
+        return source.getTile(coord).getElementGroups(layer, 'line');
+    });
     if (!hasData) return;
 
     var gl = painter.gl;
@@ -51,7 +48,7 @@ module.exports = function drawLine(painter, source, layer, coords) {
     }
 
     var outset = offset + edgeWidth + antialiasing / 2 + shift;
-    var color = layer.paint['line-color'];
+    var color = util.premultiply(layer.paint['line-color'], layer.paint['line-opacity']);
 
     var tr = painter.transform;
 
@@ -129,22 +126,23 @@ module.exports = function drawLine(painter, source, layer, coords) {
         var coord = coords[k];
         var tile = source.getTile(coord);
 
-        var elementGroups = tile.buffers && tile.elementGroups[layer.ref || layer.id] && tile.elementGroups[layer.ref || layer.id].line;
+        var elementGroups = tile.getElementGroups(layer, 'line');
         if (!elementGroups) continue;
 
         painter.enableTileClippingMask(coord);
 
         // set uniforms that are different for each tile
-        var posMatrix = painter.translatePosMatrix(painter.calculatePosMatrix(coord, source.maxzoom), tile, layer.paint['line-translate'], layer.paint['line-translate-anchor']);
+        var posMatrix = painter.translatePosMatrix(painter.calculatePosMatrix(coord, tile.tileExtent, source.maxzoom), tile, layer.paint['line-translate'], layer.paint['line-translate-anchor']);
 
         gl.setPosMatrix(posMatrix);
         gl.setExMatrix(painter.transform.exMatrix);
-        var ratio = painter.transform.scale / (1 << coord.z) / (4096 / tile.tileSize);
+        var ratio = painter.transform.scale / (1 << coord.z) / (tile.tileExtent / tile.tileSize);
 
-        // how much the tile is overscaled by
-        var overscaling = tile.tileSize / painter.transform.tileSize;
 
         if (dasharray) {
+            // how much the tile is overscaled by
+            var overscaling = tile.tileSize / painter.transform.tileSize;
+
             var patternratio = Math.pow(2, Math.floor(Math.log(painter.transform.scale) / Math.LN2) - coord.z) / 8 * overscaling;
             var scaleA = [patternratio / posA.width / dasharray.fromScale, -posA.height / 2];
             var gammaA = painter.lineAtlas.width / (dasharray.fromScale * posA.width * 256 * browser.devicePixelRatio) / 2;
@@ -156,7 +154,7 @@ module.exports = function drawLine(painter, source, layer, coords) {
             gl.uniform1f(shader.u_sdfgamma, Math.max(gammaA, gammaB));
 
         } else if (image) {
-            var factor = 4096 / tile.tileSize / Math.pow(2, painter.transform.tileZoom - coord.z) * overscaling;
+            var factor = tile.tileExtent / tile.tileSize / Math.pow(2, painter.transform.tileZoom - coord.z);
             gl.uniform1f(shader.u_ratio, ratio);
             gl.uniform2fv(shader.u_pattern_size_a, [imagePosA.size[0] * factor * image.fromScale, imagePosB.size[1] ]);
             gl.uniform2fv(shader.u_pattern_size_b, [imagePosB.size[0] * factor * image.toScale, imagePosB.size[1] ]);

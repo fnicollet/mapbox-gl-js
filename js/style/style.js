@@ -5,7 +5,6 @@ var styleBatch = require('./style_batch');
 var StyleLayer = require('./style_layer');
 var ImageSprite = require('./image_sprite');
 var GlyphSource = require('../symbol/glyph_source');
-var GlyphAtlas = require('../symbol/glyph_atlas');
 var SpriteAtlas = require('../symbol/sprite_atlas');
 var LineAtlas = require('../render/line_atlas');
 var util = require('../util/util');
@@ -21,9 +20,7 @@ module.exports = Style;
 function Style(stylesheet, animationLoop) {
     this.animationLoop = animationLoop || new AnimationLoop();
     this.dispatcher = new Dispatcher(Math.max(browser.hardwareConcurrency - 1, 1), this);
-    this.glyphAtlas = new GlyphAtlas(1024, 1024);
     this.spriteAtlas = new SpriteAtlas(512, 512);
-    this.spriteAtlas.resize(browser.devicePixelRatio);
     this.lineAtlas = new LineAtlas(256, 512);
 
     this._layers = {};
@@ -66,7 +63,7 @@ function Style(stylesheet, animationLoop) {
             this.sprite.on('load', this.fire.bind(this, 'change'));
         }
 
-        this.glyphSource = new GlyphSource(stylesheet.glyphs, this.glyphAtlas);
+        this.glyphSource = new GlyphSource(stylesheet.glyphs);
         this._resolve();
         this.fire('load');
     }.bind(this);
@@ -96,14 +93,14 @@ Style.prototype = util.inherit(Evented, {
     _validateLayer: function(layer) {
         var source = this.sources[layer.source];
 
-        if (!layer['source-layer']) return;
+        if (!layer.sourceLayer) return;
         if (!source) return;
         if (!source.vectorLayerIds) return;
 
-        if (source.vectorLayerIds.indexOf(layer['source-layer']) === -1) {
+        if (source.vectorLayerIds.indexOf(layer.sourceLayer) === -1) {
             this.fire('error', {
                 error: new Error(
-                    'Source layer "' + layer['source-layer'] + '" ' +
+                    'Source layer "' + layer.sourceLayer + '" ' +
                     'does not exist on source "' + source.id + '" ' +
                     'as specified by style layer "' + layer.id + '"'
                 )
@@ -126,26 +123,31 @@ Style.prototype = util.inherit(Evented, {
     },
 
     _resolve: function() {
-        var id, layer;
+        var layer, layerJSON;
 
         this._layers = {};
-        this._order  = [];
+        this._order  = this.stylesheet.layers.map(function(layer) {
+            return layer.id;
+        });
 
+        // resolve all layers WITHOUT a ref
         for (var i = 0; i < this.stylesheet.layers.length; i++) {
-            layer = new StyleLayer(this.stylesheet.layers[i]);
+            layerJSON = this.stylesheet.layers[i];
+            if (layerJSON.ref) continue;
+            layer = StyleLayer.create(layerJSON);
             this._layers[layer.id] = layer;
-            this._order.push(layer.id);
+            layer.resolveLayout();
+            layer.resolvePaint();
         }
 
-        // Resolve layout properties.
-        for (id in this._layers) {
-            this._layers[id].resolveLayout();
-        }
-
-        // Resolve reference and paint properties.
-        for (id in this._layers) {
-            this._layers[id].resolveReference(this._layers);
-            this._layers[id].resolvePaint();
+        // resolve all layers WITH a ref
+        for (var j = 0; j < this.stylesheet.layers.length; j++) {
+            layerJSON = this.stylesheet.layers[j];
+            if (!layerJSON.ref) continue;
+            var refLayer = this.getLayer(layerJSON.ref);
+            layer = StyleLayer.create(layerJSON, refLayer);
+            this._layers[layer.id] = layer;
+            layer.resolvePaint();
         }
 
         this._groupLayers();
@@ -203,7 +205,8 @@ Style.prototype = util.inherit(Evented, {
         for (id in this._layers) {
             var layer = this._layers[id];
 
-            if (layer.recalculate(z, this.zoomHistory) && layer.source) {
+            layer.recalculate(z, this.zoomHistory);
+            if (!layer.isHidden(z) && layer.source) {
                 this.sources[layer.source].used = true;
             }
         }

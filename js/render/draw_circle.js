@@ -1,6 +1,7 @@
 'use strict';
 
-var browser = require('../util/browser.js');
+var browser = require('../util/browser');
+var util = require('../util/util');
 
 module.exports = drawCircles;
 
@@ -25,7 +26,8 @@ function drawCircles(painter, source, layer, coords) {
     // are inversely related.
     var antialias = 1 / browser.devicePixelRatio / layer.paint['circle-radius'];
 
-    gl.uniform4fv(shader.u_color, layer.paint['circle-color']);
+    var color = util.premultiply(layer.paint['circle-color'], layer.paint['circle-opacity']);
+    gl.uniform4fv(shader.u_color, color);
     gl.uniform1f(shader.u_blur, Math.max(layer.paint['circle-blur'], antialias));
     gl.uniform1f(shader.u_size, layer.paint['circle-radius']);
 
@@ -34,14 +36,14 @@ function drawCircles(painter, source, layer, coords) {
 
         var tile = source.getTile(coord);
         if (!tile.buffers) continue;
-        if (!tile.elementGroups[layer.ref || layer.id].circle) continue;
+        var elementGroups = tile.getElementGroups(layer, 'circle');
+        if (!elementGroups) continue;
 
-        var elementGroups = tile.elementGroups[layer.ref || layer.id].circle;
         var vertex = tile.buffers.circleVertex;
         var elements = tile.buffers.circleElement;
 
         gl.setPosMatrix(painter.translatePosMatrix(
-            painter.calculatePosMatrix(coord, source.maxzoom),
+            painter.calculatePosMatrix(coord, tile.tileExtent, source.maxzoom),
             tile,
             layer.paint['circle-translate'],
             layer.paint['circle-translate-anchor']

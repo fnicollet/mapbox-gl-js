@@ -5,13 +5,21 @@ var util = require('../util/util');
 module.exports = drawRaster;
 
 function drawRaster(painter, source, layer, coords) {
-    for (var i = 0; i < coords.length; i++) {
+    if (painter.isOpaquePass) return;
+
+    var gl = painter.gl;
+
+    // Change depth function to prevent double drawing in areas where tiles overlap.
+    gl.depthFunc(gl.LESS);
+
+    for (var i = coords.length - 1; i >= 0; i--) {
         drawRasterTile(painter, source, layer, coords[i]);
     }
+
+    gl.depthFunc(gl.LEQUAL);
 }
 
 function drawRasterTile(painter, source, layer, coord) {
-    if (painter.isOpaquePass) return;
 
     painter.setDepthSublayer(0);
 
@@ -20,7 +28,7 @@ function drawRasterTile(painter, source, layer, coord) {
     gl.disable(gl.STENCIL_TEST);
 
     var tile = source.getTile(coord);
-    var posMatrix = painter.calculatePosMatrix(coord, source.maxzoom);
+    var posMatrix = painter.calculatePosMatrix(coord, tile.tileExtent, source.maxzoom);
 
     var shader = painter.rasterShader;
     gl.switchShader(shader, posMatrix);
@@ -93,11 +101,11 @@ function saturationFactor(saturation) {
 
 function getOpacities(tile, parentTile, layer, transform) {
     var opacity = [1, 0];
+    var fadeDuration = layer.paint['raster-fade-duration'];
 
-    if (tile.source) {
+    if (tile.source && fadeDuration > 0) {
         var now = new Date().getTime();
 
-        var fadeDuration = layer.paint['raster-fade-duration'];
         var sinceTile = (now - tile.timeAdded) / fadeDuration;
         var sinceParent = parentTile ? (now - parentTile.timeAdded) / fadeDuration : -1;
 

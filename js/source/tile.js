@@ -13,12 +13,13 @@ module.exports = Tile;
  * @param {number} size
  * @private
  */
-function Tile(coord, size) {
+function Tile(coord, size, sourceMaxZoom) {
     this.coord = coord;
     this.uid = util.uniqueId();
     this.loaded = false;
     this.uses = 0;
     this.tileSize = size;
+    this.sourceMaxZoom = sourceMaxZoom;
 }
 
 Tile.prototype = {
@@ -32,12 +33,11 @@ Tile.prototype = {
      * @returns {Object} position
      * @private
      */
-    positionAt: function(coord, sourceMaxZoom) {
-        coord = coord.zoomTo(Math.min(this.coord.z, sourceMaxZoom));
+    positionAt: function(coord) {
+        var zoomedCoord = coord.zoomTo(Math.min(this.coord.z, this.sourceMaxZoom));
         return {
-            x: (coord.column - this.coord.x) * this.tileExtent,
-            y: (coord.row - this.coord.y) * this.tileExtent,
-            scale: this.scale
+            x: (zoomedCoord.column - this.coord.x) * this.tileExtent,
+            y: (zoomedCoord.row - this.coord.y) * this.tileExtent
         };
     },
 
@@ -137,13 +137,8 @@ Tile.prototype = {
         }
     },
 
-    /**
-     * Return whether this tile has any data for the given layer.
-     * @param {Object} style layer object
-     * @returns {boolean}
-     */
-    hasLayerData: function(layer) {
-        return Boolean(this.buffers && this.elementGroups[layer.ref || layer.id] && Object.keys(this.elementGroups[layer.ref || layer.id]).length);
+    getElementGroups: function(layer, shaderName) {
+        return this.elementGroups && this.elementGroups[layer.ref || layer.id] && this.elementGroups[layer.ref || layer.id][shaderName];
     }
 };
 

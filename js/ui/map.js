@@ -122,7 +122,7 @@ var Map = module.exports = function(options) {
 
     if (options.classes) this.setClasses(options.classes);
     if (options.style) this.setStyle(options.style);
-    if (options.attributionControl) this.addControl(new Attribution());
+    if (options.attributionControl) this.addControl(new Attribution(options.attributionControl));
 
     this.on('style.error', this.onError);
     this.on('source.error', this.onError);
@@ -527,7 +527,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * Set the filter for a given style layer.
      *
      * @param {string} layer ID of a layer
-     * @param {Array} filter filter specification, as defined in the [Style Specification](https://www.mapbox.com/mapbox-gl-style-spec/#filter)
+     * @param {Array} filter filter specification, as defined in the [Style Specification](https://www.mapbox.com/mapbox-gl-style-spec/#types-filter)
      * @returns {Map} `this`
      */
     setFilter: function(layer, filter) {
@@ -805,8 +805,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
         if (typeof window !== 'undefined') {
             window.removeEventListener('resize', this._onWindowResize, false);
         }
-        this._canvasContainer.remove();
-        this._controlContainer.remove();
+        removeNode(this._canvasContainer);
+        removeNode(this._controlContainer);
         this._container.classList.remove('mapboxgl-map');
     },
 
@@ -910,7 +910,11 @@ util.extendAll(Map.prototype, /** @lends Map.prototype */{
      */
     _debug: false,
     get debug() { return this._debug; },
-    set debug(value) { this._debug = value; this._update(); },
+    set debug(value) {
+        if (this._debug === value) return;
+        this._debug = value;
+        this._update();
+    },
 
     /**
      * Show collision boxes: useful for debugging label placement
@@ -922,6 +926,7 @@ util.extendAll(Map.prototype, /** @lends Map.prototype */{
     _collisionDebug: false,
     get collisionDebug() { return this._collisionDebug; },
     set collisionDebug(value) {
+        if (this._collisionDebug === value) return;
         this._collisionDebug = value;
         this.style._redoPlacement();
     },
@@ -941,3 +946,9 @@ util.extendAll(Map.prototype, /** @lends Map.prototype */{
     get vertices() { return this._vertices; },
     set vertices(value) { this._vertices = value; this._update(); }
 });
+
+function removeNode(node) {
+    if (node.parentNode) {
+        node.parentNode.removeChild(node);
+    }
+}

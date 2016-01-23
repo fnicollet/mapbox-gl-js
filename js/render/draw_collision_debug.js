@@ -3,15 +3,14 @@
 module.exports = drawCollisionDebug;
 
 function drawCollisionDebug(painter, layer, coord, tile) {
-    if (!tile.elementGroups[layer.ref || layer.id]) return;
-    var elementGroups = tile.elementGroups[layer.ref || layer.id].collisionBox;
-    if (!elementGroups) return;
     if (!tile.buffers) return;
+    var elementGroups = tile.getElementGroups(layer, 'collisionBox');
+    if (!elementGroups) return;
 
     var gl = painter.gl;
     var buffer = tile.buffers.collisionBoxVertex;
     var shader = painter.collisionBoxShader;
-    var posMatrix = painter.calculatePosMatrix(coord);
+    var posMatrix = painter.calculatePosMatrix(coord, tile.tileExtent);
 
     gl.enable(gl.STENCIL_TEST);
     painter.enableTileClippingMask(coord);

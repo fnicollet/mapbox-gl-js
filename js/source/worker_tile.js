@@ -28,10 +28,11 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
 
     var tile = this,
         buffers = {},
-        collisionTile = new CollisionTile(this.angle, this.pitch),
         bucketsById = {},
         bucketsBySourceLayer = {},
         i, layer, sourceLayerId, bucket;
+
+    var extent = this.extent = getExtent(data.layers);
 
     // Map non-ref layers to buckets.
     for (i = 0; i < layers.length; i++) {
@@ -49,9 +50,9 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
             buffers: buffers,
             zoom: this.zoom,
             overscaling: this.overscaling,
-            collisionDebug: this.collisionDebug
+            collisionDebug: this.collisionDebug,
+            tileExtent: extent
         });
-        bucket.layers = [layer.id];
 
         bucketsById[layer.id] = bucket;
 
@@ -70,15 +71,13 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
         }
     }
 
-    var extent = 4096;
-
     // read each layer, and sort its features into buckets
     if (data.layers) { // vectortile
         for (sourceLayerId in bucketsBySourceLayer) {
             layer = data.layers[sourceLayerId];
-            if (!layer) continue;
-            if (layer.extent) extent = layer.extent;
-            sortLayerIntoBuckets(layer, bucketsBySourceLayer[sourceLayerId]);
+            if (layer) {
+                sortLayerIntoBuckets(layer, bucketsBySourceLayer[sourceLayerId]);
+            }
         }
     } else { // geojson
         sortLayerIntoBuckets(data, bucketsById);
@@ -97,6 +96,8 @@ WorkerTile.prototype.parse = function(data, layers, actor, callback) {
     var buckets = [],
         symbolBuckets = this.symbolBuckets = [],
         otherBuckets = [];
+
+    var collisionTile = new CollisionTile(this.angle, this.pitch, extent);
 
     for (var id in bucketsById) {
         bucket = bucketsById[id];
@@ -210,7 +211,7 @@ WorkerTile.prototype.redoPlacement = function(angle, pitch, collisionDebug) {
     }
 
     var buffers = {},
-        collisionTile = new CollisionTile(angle, pitch);
+        collisionTile = new CollisionTile(angle, pitch, this.extent);
 
     for (var i = this.symbolBuckets.length - 1; i >= 0; i--) {
         this.symbolBuckets[i].placeFeatures(collisionTile, buffers, collisionDebug);
@@ -244,4 +245,14 @@ function getTransferables(buffers) {
         buffers[k].push = null;
     }
     return transferables;
+}
+
+function getExtent(layers) {
+    var extent = 4096;
+    if (!layers) return extent;
+    for (var key in layers) {
+        var layer = layers[key];
+        if (layer && layer.extent) extent = layer.extent;
+    }
+    return extent;
 }
