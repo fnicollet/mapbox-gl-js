@@ -91,17 +91,18 @@ test('GeoJSONSource#update', function(t) {
         var source = new GeoJSONSource({
             data: {},
             maxzoom: 10,
-            tolerance: 2,
-            buffer: 128
+            tolerance: 0.25,
+            buffer: 16
         });
 
         source.dispatcher = {
             send: function(message, params) {
                 t.equal(message, 'parse geojson');
                 t.deepEqual(params.geojsonVtOptions, {
+                    extent: 8192,
                     maxZoom: 10,
-                    tolerance: 2,
-                    buffer: 128
+                    tolerance: 4,
+                    buffer: 256
                 });
                 t.end();
             }
@@ -177,5 +178,36 @@ test('GeoJSONSource#update', function(t) {
                 t.end();
             });
         });
+    });
+});
+
+test('GeoJSONSource#serialize', function(t) {
+
+    t.test('serialize source with inline data', function(t) {
+        var source = new GeoJSONSource({data: hawkHill});
+        t.deepEqual(source.serialize(), {
+            type: 'geojson',
+            data: hawkHill
+        });
+        t.end();
+    });
+
+    t.test('serialize source with url', function(t) {
+        var source = new GeoJSONSource({data: 'local://data.json'});
+        t.deepEqual(source.serialize(), {
+            type: 'geojson',
+            data: 'local://data.json'
+        });
+        t.end();
+    });
+
+    t.test('serialize source with updated data', function(t) {
+        var source = new GeoJSONSource({data: {}});
+        source.setData(hawkHill);
+        t.deepEqual(source.serialize(), {
+            type: 'geojson',
+            data: hawkHill
+        });
+        t.end();
     });
 });

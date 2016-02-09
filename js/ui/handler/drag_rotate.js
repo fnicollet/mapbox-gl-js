@@ -4,7 +4,7 @@ var DOM = require('../../util/dom'),
     Point = require('point-geometry'),
     util = require('../../util/util');
 
-module.exports = DragRotate;
+module.exports = DragRotateHandler;
 
 var inertiaLinearity = 0.25,
     inertiaEasing = util.bezier(0, 0, inertiaLinearity, 1),
@@ -12,18 +12,35 @@ var inertiaLinearity = 0.25,
     inertiaDeceleration = 720; // deg/s^2
 
 
-function DragRotate(map) {
+/**
+ * The `DragRotateHandler` allows a user to rotate the map by clicking and
+ * dragging the cursor while holding the right mouse button or the `ctrl` key.
+ * @class DragRotateHandler
+ */
+function DragRotateHandler(map) {
     this._map = map;
     this._el = map.getCanvasContainer();
 
     util.bindHandlers(this);
 }
 
-DragRotate.prototype = {
+DragRotateHandler.prototype = {
+
+    /**
+     * Enable the "drag to rotate" interaction.
+     * @example
+     *   map.dragRotate.enable();
+     */
     enable: function () {
+        this.disable();
         this._el.addEventListener('mousedown', this._onDown);
     },
 
+    /**
+     * Disable the "drag to rotate" interaction.
+     * @example
+     *   map.dragRotate.disable();
+     */
     disable: function () {
         this._el.removeEventListener('mousedown', this._onDown);
     },
@@ -100,7 +117,7 @@ DragRotate.prototype = {
 
         var finish = function() {
             if (Math.abs(mapBearing) < map.options.bearingSnap) {
-                map.resetNorth({noMoveStart: true});
+                map.resetNorth({noMoveStart: true}, { originalEvent: e });
             } else {
                 this._fireEvent('moveend', e);
             }
@@ -142,7 +159,7 @@ DragRotate.prototype = {
             duration: duration * 1000,
             easing: inertiaEasing,
             noMoveStart: true
-        });
+        }, { originalEvent: e });
     },
 
     _fireEvent: function (type, e) {
@@ -181,8 +198,7 @@ DragRotate.prototype = {
  * @event rotatestart
  * @memberof Map
  * @instance
- * @type {Object}
- * @property {Event} originalEvent the original DOM event
+ * @property {EventData} data Original event data
  */
 
 /**
@@ -191,8 +207,7 @@ DragRotate.prototype = {
  * @event rotate
  * @memberof Map
  * @instance
- * @type {Object}
- * @property {Event} originalEvent the original DOM event
+ * @property {EventData} data Original event data
  */
 
 /**
@@ -201,6 +216,5 @@ DragRotate.prototype = {
  * @event rotateend
  * @memberof Map
  * @instance
- * @type {Object}
- * @property {Event} originalEvent the original DOM event
+ * @property {EventData} data Original event data
  */

@@ -136,8 +136,6 @@ Style.prototype = util.inherit(Evented, {
             if (layerJSON.ref) continue;
             layer = StyleLayer.create(layerJSON);
             this._layers[layer.id] = layer;
-            layer.resolveLayout();
-            layer.resolvePaint();
         }
 
         // resolve all layers WITH a ref
@@ -147,7 +145,6 @@ Style.prototype = util.inherit(Evented, {
             var refLayer = this.getLayer(layerJSON.ref);
             layer = StyleLayer.create(layerJSON, refLayer);
             this._layers[layer.id] = layer;
-            layer.resolvePaint();
         }
 
         this._groupLayers();
@@ -175,7 +172,7 @@ Style.prototype = util.inherit(Evented, {
 
     _broadcastLayers: function() {
         this.dispatcher.broadcast('set layers', this._order.map(function(id) {
-            return this._layers[id].json();
+            return this._layers[id].serialize({includeRefProperties: true});
         }, this));
     },
 
@@ -394,6 +391,27 @@ Style.prototype = util.inherit(Evented, {
         return this.getLayer(layer).getPaintProperty(name, klass);
     },
 
+    serialize: function() {
+        return util.filterObject({
+            version: this.stylesheet.version,
+            name: this.stylesheet.name,
+            metadata: this.stylesheet.metadata,
+            center: this.stylesheet.center,
+            zoom: this.stylesheet.zoom,
+            bearing: this.stylesheet.bearing,
+            pitch: this.stylesheet.pitch,
+            sprite: this.stylesheet.sprite,
+            glyphs: this.stylesheet.glyphs,
+            transition: this.stylesheet.transition,
+            sources: util.mapObject(this.sources, function(source) {
+                return source.serialize();
+            }),
+            layers: this._order.map(function(id) {
+                return this._layers[id].serialize();
+            }, this)
+        }, function(value) { return value !== undefined; });
+    },
+
     featuresAt: function(coord, params, callback) {
         this._queryFeatures('featuresAt', coord, params, callback);
     },
@@ -425,7 +443,9 @@ Style.prototype = util.inherit(Evented, {
                     return this._layers[feature.layer] !== undefined;
                 }.bind(this))
                 .map(function(feature) {
-                    feature.layer = this._layers[feature.layer].json();
+                    feature.layer = this._layers[feature.layer].serialize({
+                        includeRefProperties: true
+                    });
                     return feature;
                 }.bind(this)));
         }.bind(this));

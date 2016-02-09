@@ -6,6 +6,7 @@ var LngLat = require('../geo/lng_lat');
 var Point = require('point-geometry');
 var Evented = require('../util/evented');
 var ajax = require('../util/ajax');
+var EXTENT = require('../data/buffer').EXTENT;
 
 module.exports = VideoSource;
 
@@ -32,6 +33,9 @@ module.exports = VideoSource;
  * map.removeSource('some id');  // remove
  */
 function VideoSource(options) {
+    this.urls = options.urls;
+    this.coordinates = options.coordinates;
+
     ajax.getVideo(options.urls, function(err, video) {
         // @TODO handle errors via event.
         if (err) return;
@@ -95,12 +99,11 @@ VideoSource.prototype = util.inherit(Evented, /** @lends VideoSource.prototype *
 
         var centerCoord = this.centerCoord = util.getCoordinatesCenter(cornerZ0Coords);
 
-        var tileExtent = 4096;
         var tileCoords = cornerZ0Coords.map(function(coord) {
             var zoomedCoord = coord.zoomTo(centerCoord.zoom);
             return new Point(
-                Math.round((zoomedCoord.column - centerCoord.column) * tileExtent),
-                Math.round((zoomedCoord.row - centerCoord.row) * tileExtent));
+                Math.round((zoomedCoord.column - centerCoord.column) * EXTENT),
+                Math.round((zoomedCoord.row - centerCoord.row) * EXTENT));
         });
 
         var gl = map.painter.gl;
@@ -168,5 +171,13 @@ VideoSource.prototype = util.inherit(Evented, /** @lends VideoSource.prototype *
 
     featuresIn: function(bbox, params, callback) {
         return callback(null, []);
+    },
+
+    serialize: function() {
+        return {
+            type: 'video',
+            urls: this.urls,
+            coordinates: this.coordinates
+        };
     }
 });
