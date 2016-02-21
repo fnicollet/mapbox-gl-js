@@ -3,8 +3,10 @@
 var util = require('../util/util');
 var StyleTransition = require('./style_transition');
 var StyleDeclaration = require('./style_declaration');
-var StyleSpecification = require('./reference');
+var styleSpec = require('./style_spec');
+var validateStyle = require('./validate_style');
 var parseColor = require('./parse_color');
+var Evented = require('../util/evented');
 
 module.exports = StyleLayer;
 
@@ -34,8 +36,8 @@ function StyleLayer(layer, refLayer) {
     this.filter = (refLayer || layer).filter;
     this.interactive = (refLayer || layer).interactive;
 
-    this._paintSpecifications = StyleSpecification['paint_' + this.type];
-    this._layoutSpecifications = StyleSpecification['layout_' + this.type];
+    this._paintSpecifications = styleSpec['paint_' + this.type];
+    this._layoutSpecifications = styleSpec['layout_' + this.type];
 
     this._paintTransitions = {}; // {[propertyName]: StyleTransition}
     this._paintTransitionOptions = {}; // {[className]: {[propertyName]: { duration:Number, delay:Number }}}
@@ -47,8 +49,8 @@ function StyleLayer(layer, refLayer) {
         var match = key.match(/^paint(?:\.(.*))?$/);
         if (match) {
             var klass = match[1] || '';
-            for (var name in layer[key]) {
-                this.setPaintProperty(name, layer[key][name], klass);
+            for (var paintName in layer[key]) {
+                this.setPaintProperty(paintName, layer[key][paintName], klass);
             }
         }
     }
@@ -57,18 +59,25 @@ function StyleLayer(layer, refLayer) {
     if (this.ref) {
         this._layoutDeclarations = refLayer._layoutDeclarations;
     } else {
-        for (name in layer.layout) {
-            this.setLayoutProperty(name, layer.layout[name]);
+        for (var layoutName in layer.layout) {
+            this.setLayoutProperty(layoutName, layer.layout[layoutName]);
         }
     }
 }
 
-StyleLayer.prototype = {
+StyleLayer.prototype = util.inherit(Evented, {
 
     setLayoutProperty: function(name, value) {
+
         if (value == null) {
             delete this._layoutDeclarations[name];
         } else {
+            if (validateStyle.emitErrors(this, validateStyle.layoutProperty({
+                layerType: this.type,
+                objectKey: name,
+                value: value,
+                styleSpec: styleSpec
+            }))) return;
             this._layoutDeclarations[name] = new StyleDeclaration(this._layoutSpecifications[name], value);
         }
     },
@@ -92,6 +101,7 @@ StyleLayer.prototype = {
     },
 
     setPaintProperty: function(name, value, klass) {
+
         if (util.endsWith(name, TRANSITION_SUFFIX)) {
             if (!this._paintTransitionOptions[klass || '']) {
                 this._paintTransitionOptions[klass || ''] = {};
@@ -99,6 +109,12 @@ StyleLayer.prototype = {
             if (value === null || value === undefined) {
                 delete this._paintTransitionOptions[klass || ''][name];
             } else {
+                if (validateStyle.emitErrors(this, validateStyle.paintProperty({
+                    layerType: this.type,
+                    objectKey: name,
+                    value: value,
+                    styleSpec: styleSpec
+                }))) return;
                 this._paintTransitionOptions[klass || ''][name] = value;
             }
         } else {
@@ -108,6 +124,12 @@ StyleLayer.prototype = {
             if (value === null || value === undefined) {
                 delete this._paintDeclarations[klass || ''][name];
             } else {
+                if (validateStyle.emitErrors(this, validateStyle.paintProperty({
+                    layerType: this.type,
+                    objectKey: name,
+                    value: value,
+                    styleSpec: styleSpec
+                }))) return;
                 this._paintDeclarations[klass || ''][name] = new StyleDeclaration(this._paintSpecifications[name], value);
             }
         }
@@ -164,7 +186,7 @@ StyleLayer.prototype = {
         for (var klass in this._paintDeclarations) {
             if (klass !== "" && !classes[klass]) continue;
             for (var name in this._paintDeclarations[klass]) {
-                applyDeclaration(this._paintDeclarations[klass][name]);
+                applyDeclaration(name, this._paintDeclarations[klass][name]);
             }
         }
 
@@ -172,10 +194,10 @@ StyleLayer.prototype = {
         var removedNames = util.keysDifference(oldTransitions, newTransitions);
         for (var i = 0; i < removedNames.length; i++) {
             var spec = this._paintSpecifications[removedNames[i]];
-            applyDeclaration(new StyleDeclaration(spec, spec.default));
+            applyDeclaration(removedNames[i], new StyleDeclaration(spec, spec.default));
         }
 
-        function applyDeclaration(declaration) {
+        function applyDeclaration(name, declaration) {
             var oldTransition = options.transition ? oldTransitions[name] : undefined;
 
             if (oldTransition && oldTransition.declaration.json === declaration.json) {
@@ -204,13 +226,13 @@ StyleLayer.prototype = {
     // update zoom
     recalculate: function(zoom, zoomHistory) {
         this.paint = {};
-        for (var name in this._paintSpecifications) {
-            this.paint[name] = this.getPaintValue(name, zoom, zoomHistory);
+        for (var paintName in this._paintSpecifications) {
+            this.paint[paintName] = this.getPaintValue(paintName, zoom, zoomHistory);
         }
 
         this.layout = {};
-        for (name in this._layoutSpecifications) {
-            this.layout[name] = this.getLayoutValue(name, zoom, zoomHistory);
+        for (var layoutName in this._layoutSpecifications) {
+            this.layout[layoutName] = this.getLayoutValue(layoutName, zoom, zoomHistory);
         }
     },
 
@@ -225,7 +247,7 @@ StyleLayer.prototype = {
         };
 
         for (var klass in this._paintDeclarations) {
-            var key = klass === '' ? 'paint' : 'paint.' + key;
+            var key = klass === '' ? 'paint' : 'paint.' + klass;
             output[key] = util.mapObject(this._paintDeclarations[klass], getDeclarationValue);
         }
 
@@ -243,7 +265,7 @@ StyleLayer.prototype = {
             return value !== undefined && !(key === 'layout' && !Object.keys(value).length);
         });
     }
-};
+});
 
 function getDeclarationValue(declaration) {
     return declaration.value;

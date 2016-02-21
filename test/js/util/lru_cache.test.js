@@ -1,10 +1,10 @@
 'use strict';
 
 var test = require('prova');
-var MRUCache = require('../../../js/util/mru_cache');
+var LRUCache = require('../../../js/util/lru_cache');
 
-test('MRUCache', function(t) {
-    var cache = new MRUCache(10, function(removed) {
+test('LRUCache', function(t) {
+    var cache = new LRUCache(10, function(removed) {
         t.equal(removed, 'dc');
     });
     t.equal(cache.get('foo'), null, '.get() to null');
@@ -18,8 +18,8 @@ test('MRUCache', function(t) {
     t.end();
 });
 
-test('MRUCache - overflow', function(t) {
-    var cache = new MRUCache(1, function(removed) {
+test('LRUCache - overflow', function(t) {
+    var cache = new LRUCache(1, function(removed) {
         t.equal(removed, 'c');
         t.end();
     });
@@ -27,9 +27,9 @@ test('MRUCache - overflow', function(t) {
     cache.add('a', 'c');
 });
 
-test('MRUCache#reset', function(t) {
+test('LRUCache#reset', function(t) {
     var called;
-    var cache = new MRUCache(10, function(removed) {
+    var cache = new LRUCache(10, function(removed) {
         t.equal(removed, 'dc');
         called = true;
     });
@@ -37,5 +37,23 @@ test('MRUCache#reset', function(t) {
     t.equal(cache.reset(), cache);
     t.equal(cache.has('washington'), false);
     t.ok(called);
+    t.end();
+});
+
+test('LRUCache#setMaxSize', function(t) {
+    var numRemoved = 0;
+    var cache = new LRUCache(10, function() {
+        numRemoved++;
+    });
+    cache.add(1, 1);
+    cache.add(2, 2);
+    cache.add(3, 3);
+    t.equal(numRemoved, 0);
+    cache.setMaxSize(15);
+    t.equal(numRemoved, 0);
+    cache.setMaxSize(1);
+    t.equal(numRemoved, 2);
+    cache.add(4, 4);
+    t.equal(numRemoved, 3);
     t.end();
 });

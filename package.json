@@ -1,7 +1,7 @@
 {
   "name": "mapbox-gl",
   "description": "A WebGL interactive maps library",
-  "version": "0.14.0",
+  "version": "0.14.2",
   "main": "js/mapbox-gl.js",
   "license": "BSD-3-Clause",
   "repository": {
@@ -16,7 +16,7 @@
     "geojson-vt": "^2.1.0",
     "gl-matrix": "^2.3.1",
     "mapbox-gl-function": "^1.0.0",
-    "mapbox-gl-style-spec": "^8.4.1",
+    "mapbox-gl-style-spec": "^8.4.2",
     "minifyify": "^7.0.1",
     "pbf": "^1.3.2",
     "pngjs": "^2.2.0",
@@ -39,7 +39,7 @@
     "eslint": "^1.5.0",
     "eslint-config-mourner": "^1.0.0",
     "istanbul": "^0.4.1",
-    "mapbox-gl-test-suite": "mapbox/mapbox-gl-test-suite#2d31dd1f35e79f3bca2752c84747f117ea19ee9e",
+    "mapbox-gl-test-suite": "mapbox/mapbox-gl-test-suite#8859b504ef241bca49d4c2f9a79ff4d0bfdf81a1",
     "prova": "^2.1.2",
     "sinon": "^1.15.4",
     "st": "^1.0.0",

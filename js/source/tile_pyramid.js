@@ -3,7 +3,7 @@
 var Tile = require('./tile');
 var TileCoord = require('./tile_coord');
 var Point = require('point-geometry');
-var Cache = require('../util/mru_cache');
+var Cache = require('../util/lru_cache');
 var util = require('../util/util');
 var EXTENT = require('../data/buffer').EXTENT;
 
@@ -35,7 +35,7 @@ function TilePyramid(options) {
     this._redoPlacement = options.redoPlacement;
 
     this._tiles = {};
-    this._cache = new Cache(options.cacheSize, function(tile) { return this._unload(tile); }.bind(this));
+    this._cache = new Cache(0, function(tile) { return this._unload(tile); }.bind(this));
 
     this._filterRendered = this._filterRendered.bind(this);
 }
@@ -195,9 +195,31 @@ TilePyramid.prototype = {
             var tile = this._tiles[coord.id];
             if (tile && tile.loaded) {
                 retain[coord.id] = true;
-                return tile;
+                return true;
+            }
+            if (this._cache.has(coord.id)) {
+                this.addTile(coord);
+                retain[coord.id] = true;
+                return true;
             }
         }
+    },
+
+    /**
+     * Resizes the tile cache based on the current viewport's size.
+     *
+     * Larger viewports use more tiles and need larger caches. Larger viewports
+     * are more likely to be found on devices with more memory and on pages where
+     * the map is more important.
+     *
+     * @private
+     */
+    updateCacheSize: function(transform) {
+        var widthInTiles = Math.ceil(transform.width / transform.tileSize) + 1;
+        var heightInTiles = Math.ceil(transform.height / transform.tileSize) + 1;
+        var approxTilesInView = widthInTiles * heightInTiles;
+        var commonZoomRange = 5;
+        this._cache.setMaxSize(Math.floor(approxTilesInView * commonZoomRange));
     },
 
     /**
@@ -209,6 +231,8 @@ TilePyramid.prototype = {
         var i;
         var coord;
         var tile;
+
+        this.updateCacheSize(transform);
 
         // Determine the overzooming/underzooming amounts.
         var zoom = (this.roundZoom ? Math.round : Math.floor)(this.getZoom(transform));
@@ -368,7 +392,8 @@ TilePyramid.prototype = {
                     tile: tile,
                     x: pos.x,
                     y: pos.y,
-                    scale: this.transform.worldSize / Math.pow(2, tile.coord.z)
+                    scale: Math.pow(2, this.transform.zoom - tile.coord.z),
+                    tileSize: tile.tileSize
                 };
             }
         }
@@ -408,5 +433,5 @@ TilePyramid.prototype = {
 };
 
 function compareKeyZoom(a, b) {
-    return (b % 32) - (a % 32);
+    return (a % 32) - (b % 32);
 }
