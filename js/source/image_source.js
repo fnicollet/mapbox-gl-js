@@ -2,11 +2,12 @@
 
 var util = require('../util/util');
 var Tile = require('./tile');
+var TileCoord = require('./tile_coord');
 var LngLat = require('../geo/lng_lat');
 var Point = require('point-geometry');
 var Evented = require('../util/evented');
 var ajax = require('../util/ajax');
-var EXTENT = require('../data/buffer').EXTENT;
+var EXTENT = require('../data/bucket').EXTENT;
 
 module.exports = ImageSource;
 
@@ -15,8 +16,7 @@ module.exports = ImageSource;
  * @class ImageSource
  * @param {Object} [options]
  * @param {string} options.url A string URL of an image file
- * @param {Array} options.coordinates lng, lat coordinates in order clockwise
- * starting at the top left: tl, tr, br, bl
+ * @param {Array} options.coordinates Four geographical [lng, lat] coordinates in clockwise order defining the corners (starting with top left) of the image. Does not have to be a rectangle.
  * @example
  * var sourceObj = new mapboxgl.ImageSource({
  *    url: 'https://www.mapbox.com/images/foo.png',
@@ -47,8 +47,7 @@ function ImageSource(options) {
         this._loaded = true;
 
         if (this.map) {
-            this.createTile(options.coordinates);
-            this.fire('change');
+            this.setCoordinates(options.coordinates);
         }
     }.bind(this));
 }
@@ -57,23 +56,31 @@ ImageSource.prototype = util.inherit(Evented, {
     onAdd: function(map) {
         this.map = map;
         if (this.image) {
-            this.createTile();
+            this.setCoordinates(this.coordinates);
         }
     },
 
     /**
-     * Calculate which mercator tile is suitable for rendering the image in
-     * and create a buffer with the corner coordinates. These coordinates
-     * may be outside the tile, because raster tiles aren't clipped when rendering.
-     * @private
+     * Update image coordinates and rerender map
+     *
+     * @param {Array} coordinates Four geographical [lng, lat] coordinates in clockwise order defining the corners (starting with top left) of the image. Does not have to be a rectangle.
+     * @returns {ImageSource} this
      */
-    createTile: function(cornerGeoCoords) {
+    setCoordinates: function(coordinates) {
+        this.coordinates = coordinates;
+
+        // Calculate which mercator tile is suitable for rendering the image in
+        // and create a buffer with the corner coordinates. These coordinates
+        // may be outside the tile, because raster tiles aren't clipped when rendering.
+
         var map = this.map;
-        var cornerZ0Coords = cornerGeoCoords.map(function(coord) {
+        var cornerZ0Coords = coordinates.map(function(coord) {
             return map.transform.locationCoordinate(LngLat.convert(coord)).zoomTo(0);
         });
 
         var centerCoord = this.centerCoord = util.getCoordinatesCenter(cornerZ0Coords);
+        centerCoord.column = Math.round(centerCoord.column);
+        centerCoord.row = Math.round(centerCoord.row);
 
         var tileCoords = cornerZ0Coords.map(function(coord) {
             var zoomedCoord = coord.zoomTo(centerCoord.zoom);
@@ -91,12 +98,16 @@ ImageSource.prototype = util.inherit(Evented, {
             tileCoords[2].x, tileCoords[2].y, maxInt16, maxInt16
         ]);
 
-        this.tile = new Tile();
+        this.tile = new Tile(new TileCoord(centerCoord.zoom, centerCoord.column, centerCoord.row));
         this.tile.buckets = {};
 
         this.tile.boundsBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.tile.boundsBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
+
+        this.fire('change');
+
+        return this;
     },
 
     loaded: function() {
@@ -132,25 +143,12 @@ ImageSource.prototype = util.inherit(Evented, {
     },
 
     getVisibleCoordinates: function() {
-        if (this.centerCoord) return [this.centerCoord];
+        if (this.tile) return [this.tile.coord];
         else return [];
     },
 
     getTile: function() {
         return this.tile;
-    },
-
-    /**
-     * An ImageSource doesn't have any vector features that could
-     * be selectable, so always return an empty array.
-     * @private
-     */
-    featuresAt: function(point, params, callback) {
-        return callback(null, []);
-    },
-
-    featuresIn: function(bbox, params, callback) {
-        return callback(null, []);
     },
 
     serialize: function() {

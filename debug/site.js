@@ -1,7 +1,7 @@
 
 mapboxgl.accessToken = getAccessToken();
 
-var map = new mapboxgl.Map({
+var map = window.map = new mapboxgl.Map({
     container: 'map',
     zoom: 12.5,
     center: [-77.01866, 38.888],
@@ -10,11 +10,12 @@ var map = new mapboxgl.Map({
 });
 
 map.addControl(new mapboxgl.Navigation());
+map.addControl(new mapboxgl.Geolocate());
 
 map.on('load', function() {
     map.addSource('geojson', {
         "type": "geojson",
-        "data": "/debug/route.json"
+        "data": "route.json"
     });
 
     map.addLayer({
@@ -41,7 +42,7 @@ map.on('load', function() {
 
     map.addSource('geojson-random-points', {
         "type": "geojson",
-        "data": "/debug/random.geojson"
+        "data": "random.geojson"
     });
 
     map.addLayer({
@@ -82,12 +83,12 @@ map.on('click', function(e) {
         .addTo(map);
 });
 
-document.getElementById('debug-checkbox').onclick = function() {
-    map.debug = !!this.checked;
+document.getElementById('show-tile-boundaries-checkbox').onclick = function() {
+    map.showTileBoundaries = !!this.checked;
 };
 
-document.getElementById('collision-debug-checkbox').onclick = function() {
-    map.collisionDebug = !!this.checked;
+document.getElementById('show-symbol-collision-boxes-checkbox').onclick = function() {
+    map.showCollisionBoxes = !!this.checked;
 };
 
 document.getElementById('buffer-checkbox').onclick = function() {
@@ -104,14 +105,18 @@ document.onkeypress = function(e) {
 };
 
 function getAccessToken() {
-    var match = location.search.match(/access_token=([^&\/]*)/);
-    var accessToken = match && match[1];
-
-    if (accessToken) {
-        localStorage.accessToken = accessToken;
-    } else {
-        accessToken = localStorage.accessToken;
-    }
-
+    var accessToken = (
+        process.env.MapboxAccessToken ||
+        process.env.MAPBOX_ACCESS_TOKEN ||
+        getURLParameter('access_token') ||
+        localStorage.getItem('accessToken')
+    );
+    localStorage.setItem('accessToken', accessToken);
     return accessToken;
+}
+
+function getURLParameter(name) {
+    var regexp = new RegExp('[?&]' + name + '=([^&#]*)', 'i');
+    var output = regexp.exec(window.location.href);
+    return output && output[1];
 }

@@ -9,7 +9,9 @@ var Protobuf = require('pbf');
 var supercluster = require('supercluster');
 
 var geojsonvt = require('geojson-vt');
+var rewind = require('geojson-rewind');
 var GeoJSONWrapper = require('./geojson_wrapper');
+var vtpbf = require('vt-pbf');
 
 module.exports = function(self) {
     return new Worker(self);
@@ -28,6 +30,17 @@ function Worker(self) {
 util.extend(Worker.prototype, {
     'set layers': function(layers) {
         this.layers = layers;
+    },
+
+    'update layers': function(layers) {
+        var layersById = {};
+        var i;
+        for (i = 0; i < layers.length; i++) {
+            layersById[layers[i].id] = layers[i];
+        }
+        for (i = 0; i < this.layers.length; i++) {
+            this.layers[i] = layersById[this.layers[i].id] || this.layers[i];
+        }
     },
 
     'load tile': function(params, callback) {
@@ -72,7 +85,7 @@ util.extend(Worker.prototype, {
             if (err) return callback(err);
 
             tile.data = new vt.VectorTile(new Protobuf(new Uint8Array(data)));
-            tile.parse(tile.data, this.layers, this.actor, callback);
+            tile.parse(tile.data, this.layers, this.actor, data, callback);
 
             this.loaded[source] = this.loaded[source] || {};
             this.loaded[source][uid] = tile;
@@ -84,7 +97,7 @@ util.extend(Worker.prototype, {
             uid = params.uid;
         if (loaded && loaded[uid]) {
             var tile = loaded[uid];
-            tile.parse(tile.data, this.layers, this.actor, callback);
+            tile.parse(tile.data, this.layers, this.actor, params.rawTileData, callback);
         }
     },
 
@@ -112,7 +125,7 @@ util.extend(Worker.prototype, {
 
         if (loaded && loaded[uid]) {
             var tile = loaded[uid];
-            var result = tile.redoPlacement(params.angle, params.pitch, params.collisionDebug);
+            var result = tile.redoPlacement(params.angle, params.pitch, params.showCollisionBoxes);
 
             if (result.result) {
                 callback(null, result.result, result.transferables);
@@ -125,6 +138,7 @@ util.extend(Worker.prototype, {
 
     'parse geojson': function(params, callback) {
         var indexData = function(err, data) {
+            rewind(data, true);
             if (err) return callback(err);
             if (typeof data != 'object') {
                 return callback(new Error("Input data is not a valid GeoJSON object."));
@@ -139,16 +153,17 @@ util.extend(Worker.prototype, {
             callback(null);
         }.bind(this);
 
-        // TODO accept params.url for urls instead
-
         // Not, because of same origin issues, urls must either include an
         // explicit origin or absolute path.
         // ie: /foo/bar.json or http://example.com/bar.json
         // but not ../foo/bar.json
-        if (typeof params.data === 'string') {
-            ajax.getJSON(params.data, indexData);
+        if (params.url) {
+            ajax.getJSON(params.url, indexData);
+        } else if (typeof params.data === 'string') {
+            indexData(null, JSON.parse(params.data));
+        } else {
+            return callback(new Error("Input data is not a valid GeoJSON object."));
         }
-        else indexData(null, params.data);
     },
 
     'load geojson tile': function(params, callback) {
@@ -165,21 +180,18 @@ util.extend(Worker.prototype, {
 
         // if (!geoJSONTile) console.log('not found', this.geoJSONIndexes[source], coord);
 
-        if (!geoJSONTile) return callback(null, null); // nothing in the given tile
-
-        var tile = new WorkerTile(params);
-        tile.parse(new GeoJSONWrapper(geoJSONTile.features), this.layers, this.actor, callback);
+        var tile = geoJSONTile ? new WorkerTile(params) : undefined;
 
         this.loaded[source] = this.loaded[source] || {};
         this.loaded[source][params.uid] = tile;
-    },
 
-    'query features': function(params, callback) {
-        var tile = this.loaded[params.source] && this.loaded[params.source][params.uid];
-        if (tile) {
-            tile.featureTree.query(params, callback);
+        if (geoJSONTile) {
+            var geojsonWrapper = new GeoJSONWrapper(geoJSONTile.features);
+            geojsonWrapper.name = '_geojsonTileLayer';
+            var rawTileData = vtpbf({ layers: { '_geojsonTileLayer': geojsonWrapper }}).buffer;
+            tile.parse(geojsonWrapper, this.layers, this.actor, rawTileData, callback);
         } else {
-            callback(null, []);
+            return callback(null, null); // nothing in the given tile
         }
     }
 });

@@ -10,8 +10,7 @@ function drawCircles(painter, source, layer, coords) {
 
     var gl = painter.gl;
 
-    var shader = painter.circleShader;
-    painter.gl.switchShader(shader);
+    var program = painter.useProgram('circle');
 
     painter.setDepthSublayer(0);
     painter.depthMask(false);
@@ -27,35 +26,36 @@ function drawCircles(painter, source, layer, coords) {
     var antialias = 1 / browser.devicePixelRatio / layer.paint['circle-radius'];
 
     var color = util.premultiply(layer.paint['circle-color'], layer.paint['circle-opacity']);
-    gl.uniform4fv(shader.u_color, color);
-    gl.uniform1f(shader.u_blur, Math.max(layer.paint['circle-blur'], antialias));
-    gl.uniform1f(shader.u_size, layer.paint['circle-radius']);
+    gl.uniform4fv(program.u_color, color);
+    gl.uniform1f(program.u_blur, Math.max(layer.paint['circle-blur'], antialias));
+    gl.uniform1f(program.u_size, layer.paint['circle-radius']);
 
     for (var i = 0; i < coords.length; i++) {
         var coord = coords[i];
 
         var tile = source.getTile(coord);
-        if (!tile.buffers) continue;
-        var elementGroups = tile.getElementGroups(layer, 'circle');
+        var bucket = tile.getBucket(layer);
+        if (!bucket) continue;
+        var elementGroups = bucket.elementGroups.circle;
         if (!elementGroups) continue;
 
-        var vertex = tile.buffers.circleVertex;
-        var elements = tile.buffers.circleElement;
+        var vertex = bucket.buffers.circleVertex;
+        var elements = bucket.buffers.circleElement;
 
-        gl.setPosMatrix(painter.translatePosMatrix(
-            painter.calculatePosMatrix(coord, source.maxzoom),
+        painter.setPosMatrix(painter.translatePosMatrix(
+            coord.posMatrix,
             tile,
             layer.paint['circle-translate'],
             layer.paint['circle-translate-anchor']
         ));
-        gl.setExMatrix(painter.transform.exMatrix);
+        painter.setExMatrix(painter.transform.exMatrix);
 
-        for (var k = 0; k < elementGroups.groups.length; k++) {
-            var group = elementGroups.groups[k];
+        for (var k = 0; k < elementGroups.length; k++) {
+            var group = elementGroups[k];
             var offset = group.vertexStartIndex * vertex.itemSize;
 
             vertex.bind(gl);
-            vertex.setAttribPointers(gl, shader, offset);
+            vertex.setAttribPointers(gl, program, offset);
 
             elements.bind(gl);
 

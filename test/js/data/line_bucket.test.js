@@ -1,12 +1,12 @@
 'use strict';
 
-var test = require('prova');
+var test = require('tap').test;
 var fs = require('fs');
 var path = require('path');
 var Protobuf = require('pbf');
 var VectorTile = require('vector-tile').VectorTile;
 var Point = require('point-geometry');
-var LineBucket = require('../../../js/data/line_bucket');
+var LineBucket = require('../../../js/data/bucket/line_bucket');
 
 // Load a line feature from fixture tile.
 var vt = new VectorTile(new Protobuf(new Uint8Array(fs.readFileSync(path.join(__dirname, '/../../fixtures/mbsv5-6-18-23.vector.pbf')))));
@@ -17,7 +17,7 @@ test('LineBucket', function(t) {
         buffers: {},
         layer: { id: 'test', type: 'line', layout: {} }
     });
-    t.ok(bucket);
+    bucket.createArrays();
 
     var pointWithScale = new Point(0, 0);
     pointWithScale.scale = 10;

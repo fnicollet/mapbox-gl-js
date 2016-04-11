@@ -1,5 +1,7 @@
 'use strict';
 
+module.exports = LRUCache;
+
 /**
  * A [least-recently-used cache](http://en.wikipedia.org/wiki/Cache_algorithms)
  * with hash lookup made possible by keeping a list of keys in parallel to
@@ -9,7 +11,6 @@
  * @param {Function} onRemove callback called with items when they expire
  * @private
  */
-module.exports = LRUCache;
 function LRUCache(max, onRemove) {
     this.max = max;
     this.onRemove = onRemove;
@@ -44,12 +45,20 @@ LRUCache.prototype.reset = function() {
  * @private
  */
 LRUCache.prototype.add = function(key, data) {
-    this.data[key] = data;
-    this.order.push(key);
 
-    if (this.order.length > this.max) {
-        var removedData = this.get(this.order[0]);
-        if (removedData) this.onRemove(removedData);
+    if (this.has(key)) {
+        this.order.splice(this.order.indexOf(key), 1);
+        this.data[key] = data;
+        this.order.push(key);
+
+    } else {
+        this.data[key] = data;
+        this.order.push(key);
+
+        if (this.order.length > this.max) {
+            var removedData = this.get(this.order[0]);
+            if (removedData) this.onRemove(removedData);
+        }
     }
 
     return this;

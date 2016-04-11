@@ -82,8 +82,8 @@ VectorTileSource.prototype = util.inherit(Evented, {
     getVisibleCoordinates: Source._getVisibleCoordinates,
     getTile: Source._getTile,
 
-    featuresAt: Source._vectorFeaturesAt,
-    featuresIn: Source._vectorFeaturesIn,
+    queryRenderedFeatures: Source._queryRenderedVectorFeatures,
+    querySourceFeatures: Source._querySourceFeatures,
 
     _loadTile: function(tile) {
         var overscaling = tile.coord.z > this.maxzoom ? Math.pow(2, tile.coord.z - this.maxzoom) : 1;
@@ -97,7 +97,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
             overscaling: overscaling,
             angle: this.map.transform.angle,
             pitch: this.map.transform.pitch,
-            collisionDebug: this.map.collisionDebug
+            showCollisionBoxes: this.map.showCollisionBoxes
         };
 
 		//Utils.log("VectorTileSource._loadTile. Tile with url " + params.url);
@@ -125,7 +125,13 @@ VectorTileSource.prototype = util.inherit(Evented, {
 		                window.VectorTileSource.TO_ABORT_QUEUE.splice(abortIdx, 1);
 		                return;
 		            }
-		            tile.workerID = that.dispatcher.send('load tile', params, that._tileLoaded.bind(that, tile));
+					if (tile.workerID) {
+						params.rawTileData = tile.rawTileData;
+						that.dispatcher.send('reload tile', params, that._tileLoaded.bind(that, tile), tile.workerID);
+					} else {
+						tile.workerID = that.dispatcher.send('load tile', params, that._tileLoaded.bind(that, tile));
+					}
+		            //tile.workerID = that.dispatcher.send('load tile', params, that._tileLoaded.bind(that, tile));
 		        }, function () {
 					var abortIdx = window.VectorTileSource.TO_ABORT_QUEUE.indexOf(tile.uid);
 		            if (abortIdx != -1) {
@@ -163,6 +169,7 @@ VectorTileSource.prototype = util.inherit(Evented, {
         if (err) {
 			Utils.log("VectorTileSource._loadTile. err");
 			Utils.logError(err);
+            tile.errored = true;
             this.fire('tile.error', {tile: tile, error: err});
             return;
         }

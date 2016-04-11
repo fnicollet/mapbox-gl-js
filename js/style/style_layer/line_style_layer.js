@@ -11,18 +11,22 @@ module.exports = LineStyleLayer;
 
 LineStyleLayer.prototype = util.inherit(StyleLayer, {
 
-    getPaintValue: function(name, zoom) {
-        var output = StyleLayer.prototype.getPaintValue.apply(this, arguments);
+    getPaintValue: function(name, zoom, zoomHistory) {
+        var value = StyleLayer.prototype.getPaintValue.call(this, name, zoom, zoomHistory);
 
         // If the line is dashed, scale the dash lengths by the line
         // width at the previous round zoom level.
-        if (output && name === 'line-dasharray') {
-            var lineWidth = this.getPaintValue('line-width', Math.floor(zoom), Infinity);
-            output.fromScale *= lineWidth;
-            output.toScale *= lineWidth;
+        if (value && name === 'line-dasharray') {
+            var flooredZoom = Math.floor(zoom);
+            if (this._flooredZoom !== flooredZoom) {
+                this._flooredZoom = flooredZoom;
+                this._flooredLineWidth = this.getPaintValue('line-width', flooredZoom, Infinity);
+            }
+
+            value.fromScale *= this._flooredLineWidth;
+            value.toScale *= this._flooredLineWidth;
         }
 
-        return output;
+        return value;
     }
-
 });

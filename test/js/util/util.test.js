@@ -1,6 +1,6 @@
 'use strict';
 
-var test = require('prova');
+var test = require('tap').test;
 var Coordinate = require('../../../js/geo/coordinate');
 var util = require('../../../js/util/util');
 
@@ -17,24 +17,6 @@ test('util', function(t) {
     t.deepEqual(util.pick({a:1, b:2, c:3}, ['a', 'c']), {a:1, c:3}, 'pick');
     t.deepEqual(util.pick({a:1, b:2, c:3}, ['a', 'c', 'd']), {a:1, c:3}, 'pick');
     t.ok(typeof util.uniqueId() === 'number', 'uniqueId');
-
-    t.test('throttle', function(t) {
-        var values = [];
-        var fn = util.throttle(function(val) {
-            t.deepEqual(this, { foo: 'bar' });
-            values.push(val);
-            if (values.length === 2) {
-                t.deepEqual(values, [1, 42]);
-                t.end();
-            }
-        }, 40, { foo: 'bar' });
-        fn(1);
-        fn(2);
-        fn(3);
-        setTimeout(function() {
-            fn(42);
-        }, 20);
-    });
 
     t.test('inherit', function(t) {
         function Inheritance() { }
@@ -117,8 +99,8 @@ test('util', function(t) {
         }, function(err, results) {
             t.ifError(err);
             t.deepEqual(results, [0, 1, 2]);
-            t.end();
         }));
+        t.end();
     });
 
     t.test('asyncAll - async', function(t) {
@@ -151,8 +133,8 @@ test('util', function(t) {
         }, function(err, results) {
             t.ifError(err);
             t.deepEqual(results, []);
-            t.end();
         }));
+        t.end();
     });
 
     t.test('coalesce', function(t) {
@@ -254,6 +236,24 @@ test('util', function(t) {
         t.deepEqual(util.filterObject({map: 'box', box: 'map'}, function(value) {
             return value === 'box';
         }), {map: 'box'});
+        t.end();
+    });
+
+    t.test('deepEqual', function(t) {
+        var a = {
+            foo: 'bar',
+            bar: {
+                baz: 5,
+                lol: ["cat", 2]
+            }
+        };
+        var b = JSON.parse(JSON.stringify(a));
+        var c = JSON.parse(JSON.stringify(a));
+        c.bar.lol[0] = "z";
+
+        t.ok(util.deepEqual(a, b));
+        t.notOk(util.deepEqual(a, c));
+
         t.end();
     });
 

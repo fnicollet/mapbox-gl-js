@@ -245,43 +245,6 @@ exports.uniqueId = function () {
 };
 
 /**
- * Create a version of `fn` that only fires once every `time` millseconds.
- *
- * @param {Function} fn the function to be throttled
- * @param {number} time millseconds required between function calls
- * @param {*} context the value of `this` with which the function is called
- * @returns {Function} debounced function
- * @private
- */
-exports.throttle = function (fn, time, context) {
-    var lock, args, wrapperFn, later;
-
-    later = function () {
-        // reset lock and call if queued
-        lock = false;
-        if (args) {
-            wrapperFn.apply(context, args);
-            args = false;
-        }
-    };
-
-    wrapperFn = function () {
-        if (lock) {
-            // called too soon, queue to call later
-            args = arguments;
-
-        } else {
-            // call and lock until later
-            fn.apply(context, arguments);
-            setTimeout(later, time);
-            lock = true;
-        }
-    };
-
-    return wrapperFn;
-};
-
-/**
  * Create a version of `fn` that is only called `time` milliseconds
  * after its last invocation
  *
@@ -445,4 +408,45 @@ exports.filterObject = function(input, iterator, context) {
         }
     }
     return output;
+};
+
+/**
+ * Deeply compares two object literals.
+ * @param {Object} obj1
+ * @param {Object} obj2
+ * @returns {boolean}
+ * @private
+ */
+exports.deepEqual = function deepEqual(a, b) {
+    if (Array.isArray(a)) {
+        if (!Array.isArray(b) || a.length !== b.length) return false;
+        for (var i = 0; i < a.length; i++) {
+            if (!deepEqual(a[i], b[i])) return false;
+        }
+        return true;
+    }
+    if (typeof a === 'object') {
+        if (!(typeof b === 'object')) return false;
+        var keys = Object.keys(a);
+        if (keys.length !== Object.keys(b).length) return false;
+        for (var key in a) {
+            if (!deepEqual(a[key], b[key])) return false;
+        }
+        return true;
+    }
+    return a === b;
+};
+
+/**
+ * Check if two arrays have at least one common element.
+ * @param {Array} a
+ * @param {Array} b
+ * @returns {boolean}
+ * @private
+ */
+exports.arraysIntersect = function(a, b) {
+    for (var l = 0; l < a.length; l++) {
+        if (b.indexOf(a[l]) >= 0) return true;
+    }
+    return false;
 };

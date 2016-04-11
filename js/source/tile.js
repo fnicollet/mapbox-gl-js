@@ -1,8 +1,14 @@
 'use strict';
 
 var util = require('../util/util');
-var Buffer = require('../data/buffer');
-var EXTENT = require('../data/buffer').EXTENT;
+var Bucket = require('../data/bucket');
+var FeatureIndex = require('../data/feature_index');
+var vt = require('vector-tile');
+var Protobuf = require('pbf');
+var GeoJSONFeature = require('../util/vectortile_to_geojson');
+var featureFilter = require('feature-filter');
+var CollisionTile = require('../symbol/collision_tile');
+var CollisionBoxArray = require('../symbol/collision_box');
 
 module.exports = Tile;
 
@@ -17,46 +23,15 @@ module.exports = Tile;
 function Tile(coord, size, sourceMaxZoom) {
     this.coord = coord;
     this.uid = util.uniqueId();
-    this.loaded = false;
+    this.loaded = false; // TODO rename loaded
+    this.isUnloaded = false;
     this.uses = 0;
     this.tileSize = size;
     this.sourceMaxZoom = sourceMaxZoom;
+    this.buckets = {};
 }
 
 Tile.prototype = {
-
-    /**
-     * Converts a pixel value at a the given zoom level to tile units.
-     *
-     * The shaders mostly calculate everything in tile units so style
-     * properties need to be converted from pixels to tile units using this.
-     *
-     * For example, a translation by 30 pixels at zoom 6.5 will be a
-     * translation by pixelsToTileUnits(30, 6.5) tile units.
-     *
-     * @param {number} pixelValue
-     * @param {number} z
-     * @returns {number} value in tile units
-     * @private
-     */
-    pixelsToTileUnits: function(pixelValue, z) {
-        return pixelValue * (EXTENT / (this.tileSize * Math.pow(2, z - this.coord.z)));
-    },
-
-    /**
-     * Given a coordinate position, zoom that coordinate to my zoom and
-     * scale and return a position in x, y, scale
-     * @param {Coordinate} coord
-     * @returns {Object} position
-     * @private
-     */
-    positionAt: function(coord) {
-        var zoomedCoord = coord.zoomTo(Math.min(this.coord.z, this.sourceMaxZoom));
-        return {
-            x: (zoomedCoord.column - this.coord.x) * EXTENT,
-            y: (zoomedCoord.row - this.coord.y) * EXTENT
-        };
-    },
 
     /**
      * Given a data object with a 'buffers' property, load it into
@@ -73,8 +48,11 @@ Tile.prototype = {
         // empty GeoJSON tile
         if (!data) return;
 
-        this.buffers = unserializeBuffers(data.buffers);
-        this.elementGroups = data.elementGroups;
+        this.collisionBoxArray = new CollisionBoxArray(data.collisionBoxArray);
+        this.collisionTile = new CollisionTile(data.collisionTile, this.collisionBoxArray);
+        this.featureIndex = new FeatureIndex(data.featureIndex, data.rawTileData, this.collisionTile);
+        this.rawTileData = data.rawTileData;
+        this.buckets = unserializeBuckets(data.buckets);
     },
 
     /**
@@ -86,28 +64,22 @@ Tile.prototype = {
      * @private
      */
     reloadSymbolData: function(data, painter) {
+        if (this.isUnloaded) return;
 
-        if (!this.buffers) {
-            // the tile has been destroyed
-            return;
+        this.collisionTile = new CollisionTile(data.collisionTile, this.collisionBoxArray);
+        this.featureIndex.setCollisionTile(this.collisionTile);
+
+        // Destroy and delete existing symbol buckets
+        for (var id in this.buckets) {
+            var bucket = this.buckets[id];
+            if (bucket.type === 'symbol') {
+                bucket.destroy(painter.gl);
+                delete this.buckets[id];
+            }
         }
 
-        if (this.buffers.glyphVertex) this.buffers.glyphVertex.destroy(painter.gl);
-        if (this.buffers.glyphElement) this.buffers.glyphElement.destroy(painter.gl);
-        if (this.buffers.iconVertex) this.buffers.iconVertex.destroy(painter.gl);
-        if (this.buffers.iconElement) this.buffers.iconElement.destroy(painter.gl);
-        if (this.buffers.collisionBoxVertex) this.buffers.collisionBoxVertex.destroy(painter.gl);
-
-        var buffers = unserializeBuffers(data.buffers);
-        this.buffers.glyphVertex = buffers.glyphVertex;
-        this.buffers.glyphElement = buffers.glyphElement;
-        this.buffers.iconVertex = buffers.iconVertex;
-        this.buffers.iconElement = buffers.iconElement;
-        this.buffers.collisionBoxVertex = buffers.collisionBoxVertex;
-
-        for (var id in data.elementGroups) {
-            this.elementGroups[id] = data.elementGroups[id];
-        }
+        // Add new symbol buckets
+        util.extend(this.buckets, unserializeBuckets(data.buckets));
     },
 
     /**
@@ -119,14 +91,18 @@ Tile.prototype = {
      * @private
      */
     unloadVectorData: function(painter) {
-        this.loaded = false;
-
-        for (var b in this.buffers) {
-            if (this.buffers[b]) this.buffers[b].destroy(painter.gl);
+        for (var id in this.buckets) {
+            var bucket = this.buckets[id];
+            bucket.destroy(painter.gl);
         }
 
-        this.elementGroups = null;
-        this.buffers = null;
+        this.collisionBoxArray = null;
+        this.collisionTile = null;
+        this.featureIndex = null;
+        this.rawTileData = null;
+        this.buckets = null;
+        this.loaded = false;
+        this.isUnloaded = true;
     },
 
     redoPlacement: function(source) {
@@ -142,7 +118,7 @@ Tile.prototype = {
             source: source.id,
             angle: source.map.transform.angle,
             pitch: source.map.transform.pitch,
-            collisionDebug: source.map.collisionDebug
+            showCollisionBoxes: source.map.showCollisionBoxes
         }, done.bind(this), this.workerID);
 
         function done(_, data) {
@@ -157,15 +133,40 @@ Tile.prototype = {
         }
     },
 
-    getElementGroups: function(layer, shaderName) {
-        return this.elementGroups && this.elementGroups[layer.ref || layer.id] && this.elementGroups[layer.ref || layer.id][shaderName];
+    getBucket: function(layer) {
+        return this.buckets && this.buckets[layer.ref || layer.id];
+    },
+
+    querySourceFeatures: function(result, params) {
+        if (!this.rawTileData) return;
+
+        if (!this.vtLayers) {
+            this.vtLayers = new vt.VectorTile(new Protobuf(new Uint8Array(this.rawTileData))).layers;
+        }
+
+        var layer = this.vtLayers._geojsonTileLayer || this.vtLayers[params.sourceLayer];
+
+        if (!layer) return;
+
+        var filter = featureFilter(params.filter);
+        var coord = { z: this.coord.z, x: this.coord.x, y: this.coord.y };
+
+        for (var i = 0; i < layer.length; i++) {
+            var feature = layer.feature(i);
+            if (filter(feature)) {
+                var geojsonFeature = new GeoJSONFeature(feature, this.coord.z, this.coord.x, this.coord.y);
+                geojsonFeature.tile = coord;
+                result.push(geojsonFeature);
+            }
+        }
     }
 };
 
-function unserializeBuffers(input) {
+function unserializeBuckets(input) {
     var output = {};
-    for (var k in input) {
-        output[k] = new Buffer(input[k]);
+    for (var i = 0; i < input.length; i++) {
+        var bucket = Bucket.create(input[i]);
+        output[bucket.id] = bucket;
     }
     return output;
 }
