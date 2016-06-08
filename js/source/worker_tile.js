@@ -5,6 +5,9 @@ var CollisionTile = require('../symbol/collision_tile');
 var Bucket = require('../data/bucket');
 var CollisionBoxArray = require('../symbol/collision_box');
 var DictionaryCoder = require('../util/dictionary_coder');
+var util = require('../util/util');
+var SymbolInstancesArray = require('../symbol/symbol_instances');
+var SymbolQuadsArray = require('../symbol/symbol_quads');
 
 module.exports = WorkerTile;
 
@@ -20,12 +23,14 @@ function WorkerTile(params) {
     this.showCollisionBoxes = params.showCollisionBoxes;
 }
 
-WorkerTile.prototype.parse = function(data, layers, actor, rawTileData, callback) {
+WorkerTile.prototype.parse = function(data, layerFamilies, actor, rawTileData, callback) {
 
     this.status = 'parsing';
     this.data = data;
 
     this.collisionBoxArray = new CollisionBoxArray();
+    this.symbolInstancesArray = new SymbolInstancesArray();
+    this.symbolQuadsArray = new SymbolQuadsArray();
     var collisionTile = new CollisionTile(this.angle, this.pitch, this.collisionBoxArray);
     var featureIndex = new FeatureIndex(this.coord, this.overscaling, collisionTile, data.layers);
     var sourceLayerCoder = new DictionaryCoder(data.layers ? Object.keys(data.layers).sort() : ['_geojsonTileLayer']);
@@ -41,47 +46,50 @@ WorkerTile.prototype.parse = function(data, layers, actor, rawTileData, callback
     var bucket;
 
     // Map non-ref layers to buckets.
-    for (i = 0; i < layers.length; i++) {
-        layer = layers[i];
+    var bucketIndex = 0;
+    for (var layerId in layerFamilies) {
+        layer = layerFamilies[layerId][0];
 
         if (layer.source !== this.source) continue;
         if (layer.ref) continue;
         if (layer.minzoom && this.zoom < layer.minzoom) continue;
         if (layer.maxzoom && this.zoom >= layer.maxzoom) continue;
         if (layer.layout && layer.layout.visibility === 'none') continue;
-        if (data.layers && !data.layers[layer['source-layer']]) continue;
+        if (data.layers && !data.layers[layer.sourceLayer]) continue;
 
         bucket = Bucket.create({
             layer: layer,
-            index: i,
+            index: bucketIndex++,
+            childLayers: layerFamilies[layerId],
             zoom: this.zoom,
             overscaling: this.overscaling,
             showCollisionBoxes: this.showCollisionBoxes,
             collisionBoxArray: this.collisionBoxArray,
-            sourceLayerIndex: sourceLayerCoder.encode(layer['source-layer'] || '_geojsonTileLayer')
+            symbolQuadsArray: this.symbolQuadsArray,
+            symbolInstancesArray: this.symbolInstancesArray,
+            sourceLayerIndex: sourceLayerCoder.encode(layer.sourceLayer || '_geojsonTileLayer')
         });
         bucket.createFilter();
 
         bucketsById[layer.id] = bucket;
 
         if (data.layers) { // vectortile
-            sourceLayerId = layer['source-layer'];
+            sourceLayerId = layer.sourceLayer;
             bucketsBySourceLayer[sourceLayerId] = bucketsBySourceLayer[sourceLayerId] || {};
             bucketsBySourceLayer[sourceLayerId][layer.id] = bucket;
-        }
-    }
-
-    // Index ref layers.
-    for (i = 0; i < layers.length; i++) {
-        layer = layers[i];
-        if (layer.source === this.source && layer.ref && bucketsById[layer.ref]) {
-            bucketsById[layer.ref].layerIDs.push(layer.id);
         }
     }
 
     // read each layer, and sort its features into buckets
     if (data.layers) { // vectortile
         for (sourceLayerId in bucketsBySourceLayer) {
+            if (layer.version === 1) {
+                util.warnOnce(
+                    'Vector tile source "' + this.source + '" layer "' +
+                    sourceLayerId + '" does not use vector tile spec v2 ' +
+                    'and therefore may have some rendering errors.'
+                );
+            }
             layer = data.layers[sourceLayerId];
             if (layer) {
                 sortLayerIntoBuckets(layer, bucketsBySourceLayer[sourceLayerId]);
@@ -112,7 +120,7 @@ WorkerTile.prototype.parse = function(data, layers, actor, rawTileData, callback
         bucket = bucketsById[id];
         if (bucket.features.length === 0) continue;
 
-        featureIndex.bucketLayerIDs[bucket.index] = bucket.layerIDs;
+        featureIndex.bucketLayerIDs[bucket.index] = bucket.childLayers.map(getLayerId);
 
         buckets.push(bucket);
 
@@ -205,6 +213,8 @@ WorkerTile.prototype.parse = function(data, layers, actor, rawTileData, callback
         var featureIndex_ = featureIndex.serialize();
         var collisionTile_ = collisionTile.serialize();
         var collisionBoxArray = tile.collisionBoxArray.serialize();
+        var symbolInstancesArray = tile.symbolInstancesArray.serialize();
+        var symbolQuadsArray = tile.symbolQuadsArray.serialize();
         var transferables = [rawTileData].concat(featureIndex_.transferables).concat(collisionTile_.transferables);
 
         var nonEmptyBuckets = buckets.filter(isBucketEmpty);
@@ -215,6 +225,8 @@ WorkerTile.prototype.parse = function(data, layers, actor, rawTileData, callback
             featureIndex: featureIndex_.data,
             collisionTile: collisionTile_.data,
             collisionBoxArray: collisionBoxArray,
+            symbolInstancesArray: symbolInstancesArray,
+            symbolQuadsArray: symbolQuadsArray,
             rawTileData: rawTileData
         }, getTransferables(nonEmptyBuckets).concat(transferables));
     }
@@ -249,8 +261,17 @@ WorkerTile.prototype.redoPlacement = function(angle, pitch, showCollisionBoxes) 
 };
 
 function isBucketEmpty(bucket) {
-    for (var bufferName in bucket.arrays) {
-        if (bucket.arrays[bufferName].length > 0) return true;
+    for (var programName in bucket.arrayGroups) {
+        var programArrayGroups = bucket.arrayGroups[programName];
+        for (var k = 0; k < programArrayGroups.length; k++) {
+            var programArrayGroup = programArrayGroups[k];
+            for (var layoutOrPaint in programArrayGroup) {
+                var arrays = programArrayGroup[layoutOrPaint];
+                for (var bufferName in arrays) {
+                    if (arrays[bufferName].length > 0) return true;
+                }
+            }
+        }
     }
     return false;
 }
@@ -263,9 +284,22 @@ function getTransferables(buckets) {
     var transferables = [];
     for (var i in buckets) {
         var bucket = buckets[i];
-        for (var j in bucket.arrays) {
-            transferables.push(bucket.arrays[j].arrayBuffer);
+        for (var programName in bucket.arrayGroups) {
+            var programArrayGroups = bucket.arrayGroups[programName];
+            for (var k = 0; k < programArrayGroups.length; k++) {
+                var programArrayGroup = programArrayGroups[k];
+                for (var layoutOrPaint in programArrayGroup) {
+                    var arrays = programArrayGroup[layoutOrPaint];
+                    for (var bufferName in arrays) {
+                        transferables.push(arrays[bufferName].arrayBuffer);
+                    }
+                }
+            }
         }
     }
     return transferables;
+}
+
+function getLayerId(layer) {
+    return layer.id;
 }

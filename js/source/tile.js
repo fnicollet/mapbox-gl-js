@@ -9,6 +9,8 @@ var GeoJSONFeature = require('../util/vectortile_to_geojson');
 var featureFilter = require('feature-filter');
 var CollisionTile = require('../symbol/collision_tile');
 var CollisionBoxArray = require('../symbol/collision_box');
+var SymbolInstancesArray = require('../symbol/symbol_instances');
+var SymbolQuadsArray = require('../symbol/symbol_quads');
 
 module.exports = Tile;
 
@@ -42,7 +44,7 @@ Tile.prototype = {
      * @returns {undefined}
      * @private
      */
-    loadVectorData: function(data) {
+    loadVectorData: function(data, style) {
         this.loaded = true;
 
         // empty GeoJSON tile
@@ -50,9 +52,11 @@ Tile.prototype = {
 
         this.collisionBoxArray = new CollisionBoxArray(data.collisionBoxArray);
         this.collisionTile = new CollisionTile(data.collisionTile, this.collisionBoxArray);
+        this.symbolInstancesArray = new SymbolInstancesArray(data.symbolInstancesArray);
+        this.symbolQuadsArray = new SymbolQuadsArray(data.symbolQuadsArray);
         this.featureIndex = new FeatureIndex(data.featureIndex, data.rawTileData, this.collisionTile);
         this.rawTileData = data.rawTileData;
-        this.buckets = unserializeBuckets(data.buckets);
+        this.buckets = unserializeBuckets(data.buckets, style);
     },
 
     /**
@@ -63,7 +67,7 @@ Tile.prototype = {
      * @returns {undefined}
      * @private
      */
-    reloadSymbolData: function(data, painter) {
+    reloadSymbolData: function(data, painter, style) {
         if (this.isUnloaded) return;
 
         this.collisionTile = new CollisionTile(data.collisionTile, this.collisionBoxArray);
@@ -79,7 +83,7 @@ Tile.prototype = {
         }
 
         // Add new symbol buckets
-        util.extend(this.buckets, unserializeBuckets(data.buckets));
+        util.extend(this.buckets, unserializeBuckets(data.buckets, style));
     },
 
     /**
@@ -97,6 +101,8 @@ Tile.prototype = {
         }
 
         this.collisionBoxArray = null;
+        this.symbolQuadsArray = null;
+        this.symbolInstancesArray = null;
         this.collisionTile = null;
         this.featureIndex = null;
         this.rawTileData = null;
@@ -122,7 +128,7 @@ Tile.prototype = {
         }, done.bind(this), this.workerID);
 
         function done(_, data) {
-            this.reloadSymbolData(data, source.map.painter);
+            this.reloadSymbolData(data, source.map.painter, source.map.style);
             source.fire('tile.load', {tile: this});
 
             this.redoingPlacement = false;
@@ -162,10 +168,22 @@ Tile.prototype = {
     }
 };
 
-function unserializeBuckets(input) {
+function unserializeBuckets(input, style) {
+    // Guard against the case where the map's style has been set to null while
+    // this bucket has been parsing.
+    if (!style) return;
+
     var output = {};
     for (var i = 0; i < input.length; i++) {
-        var bucket = Bucket.create(input[i]);
+        var layer = style.getLayer(input[i].layerId);
+        if (!layer) continue;
+
+        var bucket = Bucket.create(util.extend({
+            layer: layer,
+            childLayers: input[i].childLayerIds
+                .map(style.getLayer.bind(style))
+                .filter(function(layer) { return layer; })
+        }, input[i]));
         output[bucket.id] = bucket;
     }
     return output;

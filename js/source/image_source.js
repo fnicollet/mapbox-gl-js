@@ -8,13 +8,16 @@ var Point = require('point-geometry');
 var Evented = require('../util/evented');
 var ajax = require('../util/ajax');
 var EXTENT = require('../data/bucket').EXTENT;
+var RasterBoundsArray = require('../render/draw_raster').RasterBoundsArray;
+var Buffer = require('../data/buffer');
+var VertexArrayObject = require('../render/vertex_array_object');
 
 module.exports = ImageSource;
 
 /**
  * Create an Image source instance given an options object
  * @class ImageSource
- * @param {Object} [options]
+ * @param {Object} options
  * @param {string} options.url A string URL of an image file
  * @param {Array} options.coordinates Four geographical [lng, lat] coordinates in clockwise order defining the corners (starting with top left) of the image. Does not have to be a rectangle.
  * @example
@@ -31,7 +34,7 @@ module.exports = ImageSource;
  * map.removeSource('some id');  // remove
  */
 function ImageSource(options) {
-    this.urls = options.urls;
+    this.url = options.url;
     this.coordinates = options.coordinates;
 
     ajax.getImage(options.url, function(err, image) {
@@ -52,7 +55,7 @@ function ImageSource(options) {
     }.bind(this));
 }
 
-ImageSource.prototype = util.inherit(Evented, {
+ImageSource.prototype = util.inherit(Evented, /** @lends ImageSource.prototype */ {
     onAdd: function(map) {
         this.map = map;
         if (this.image) {
@@ -89,21 +92,18 @@ ImageSource.prototype = util.inherit(Evented, {
                 Math.round((zoomedCoord.row - centerCoord.row) * EXTENT));
         });
 
-        var gl = map.painter.gl;
         var maxInt16 = 32767;
-        var array = new Int16Array([
-            tileCoords[0].x, tileCoords[0].y, 0, 0,
-            tileCoords[1].x, tileCoords[1].y, maxInt16, 0,
-            tileCoords[3].x, tileCoords[3].y, 0, maxInt16,
-            tileCoords[2].x, tileCoords[2].y, maxInt16, maxInt16
-        ]);
+        var array = new RasterBoundsArray();
+        array.emplaceBack(tileCoords[0].x, tileCoords[0].y, 0, 0);
+        array.emplaceBack(tileCoords[1].x, tileCoords[1].y, maxInt16, 0);
+        array.emplaceBack(tileCoords[3].x, tileCoords[3].y, 0, maxInt16);
+        array.emplaceBack(tileCoords[2].x, tileCoords[2].y, maxInt16, maxInt16);
 
         this.tile = new Tile(new TileCoord(centerCoord.zoom, centerCoord.column, centerCoord.row));
         this.tile.buckets = {};
 
-        this.tile.boundsBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.tile.boundsBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
+        this.tile.boundsBuffer = new Buffer(array.serialize(), RasterBoundsArray.serialize(), Buffer.BufferType.VERTEX);
+        this.tile.boundsVAO = new VertexArrayObject();
 
         this.fire('change');
 
@@ -154,7 +154,7 @@ ImageSource.prototype = util.inherit(Evented, {
     serialize: function() {
         return {
             type: 'image',
-            urls: this.urls,
+            urls: this.url,
             coordinates: this.coordinates
         };
     }

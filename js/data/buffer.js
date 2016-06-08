@@ -18,6 +18,7 @@ function Buffer(array, arrayType, type) {
     this.attributes = arrayType.members;
     this.itemSize = arrayType.bytesPerElement;
     this.type = type;
+    this.arrayType = arrayType;
 }
 
 /**
@@ -41,18 +42,7 @@ Buffer.prototype.bind = function(gl) {
 };
 
 /**
- * Destroy the GL buffer bound to the given WebGL context
- * @private
- * @param gl The WebGL context
- */
-Buffer.prototype.destroy = function(gl) {
-    if (this.buffer) {
-        gl.deleteBuffer(this.buffer);
-    }
-};
-
-/**
- * @enum {string} BufferAttributeType
+ * @enum {string} AttributeType
  * @private
  * @readonly
  */
@@ -64,24 +54,37 @@ var AttributeType = {
 };
 
 /**
- * Set the attribute pointers in a WebGL context according to the buffer's attribute layout
+ * Set the attribute pointers in a WebGL context
  * @private
  * @param gl The WebGL context
  * @param program The active WebGL program
- * @param {number} offset The offset of the attribute data in the currently bound GL buffer.
  */
-Buffer.prototype.setAttribPointers = function(gl, program, offset) {
-    for (var i = 0; i < this.attributes.length; i++) {
-        var attrib = this.attributes[i];
+Buffer.prototype.setVertexAttribPointers = function(gl, program) {
+    for (var j = 0; j < this.attributes.length; j++) {
+        var member = this.attributes[j];
+        var attribIndex = program[member.name];
 
-        gl.vertexAttribPointer(
-            program['a_' + attrib.name],
-            attrib.components,
-            gl[AttributeType[attrib.type]],
-            false,
-            this.itemSize,
-            offset + attrib.offset
-        );
+        if (attribIndex !== undefined) {
+            gl.vertexAttribPointer(
+                attribIndex,
+                member.components,
+                gl[AttributeType[member.type]],
+                false,
+                this.arrayType.bytesPerElement,
+                member.offset
+            );
+        }
+    }
+};
+
+/**
+ * Destroy the GL buffer bound to the given WebGL context
+ * @private
+ * @param gl The WebGL context
+ */
+Buffer.prototype.destroy = function(gl) {
+    if (this.buffer) {
+        gl.deleteBuffer(this.buffer);
     }
 };
 

@@ -50,28 +50,6 @@ exports.bezier = function(p1x, p1y, p2x, p2y) {
 exports.ease = exports.bezier(0.25, 0.1, 0.25, 1);
 
 /**
- * Given a four-element array of numbers that represents a color in
- * RGBA, return a version for which the RGB components are multiplied
- * by the A (alpha) component
- *
- * @param {Array<number>} color color array
- * @param {number} [additionalOpacity] additional opacity to be multiplied into
- *     the color's alpha component.
- * @returns {Array<number>} premultiplied color array
- * @private
- */
-exports.premultiply = function (color, additionalOpacity) {
-    if (!color) return null;
-    var opacity = color[3] * additionalOpacity;
-    return [
-        color[0] * opacity,
-        color[1] * opacity,
-        color[2] * opacity,
-        opacity
-    ];
-};
-
-/**
  * constrain n to the given range via min + max
  *
  * @param {number} n value
@@ -438,6 +416,23 @@ exports.deepEqual = function deepEqual(a, b) {
 };
 
 /**
+ * Deeply clones two objects.
+ * @param {Object} obj1
+ * @param {Object} obj2
+ * @returns {boolean}
+ * @private
+ */
+exports.clone = function deepEqual(input) {
+    if (Array.isArray(input)) {
+        return input.map(exports.clone);
+    } else if (typeof input === 'object') {
+        return exports.mapObject(input, exports.clone);
+    } else {
+        return input;
+    }
+};
+
+/**
  * Check if two arrays have at least one common element.
  * @param {Array} a
  * @param {Array} b
@@ -449,4 +444,13 @@ exports.arraysIntersect = function(a, b) {
         if (b.indexOf(a[l]) >= 0) return true;
     }
     return false;
+};
+
+var warnOnceHistory = {};
+exports.warnOnce = function(message) {
+    if (!warnOnceHistory[message]) {
+        // console isn't defined in some WebWorkers, see #2558
+        if (typeof console !== "undefined") console.warn(message);
+        warnOnceHistory[message] = true;
+    }
 };

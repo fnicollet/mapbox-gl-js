@@ -1,3 +1,74 @@
+## 0.19.1 (June 2 2016)
+
+#### Bugfixes
+
+* Fix rendering of polygons with more than 35k vertices #2657
+
+## 0.19.0 (May 31 2016)
+
+#### New Features & Improvements
+
+* Allow use of special characters in property field names #2547
+* Improve rendering speeds on fill layers #1606
+* Add data driven styling support for `fill-color` and `fill-outline-color` #2629
+* Add `has` and `!has` filter operators mapbox/feature-filter#15
+* Improve keyboard handlers with held-down keys #2530
+* Support 'tms' tile scheme #2565
+* Add `trackResize` option to `Map` #2591
+
+#### Bugfixes
+
+* Scale circles when map is displayed at a pitch #2541
+* Fix background pattern rendering bug #2557
+* Fix bug that prevented removal of a `fill-pattern` from a fill layer #2534
+* Fix `line-pattern` and `fill-pattern`rendering #2596
+* Fix some platform specific rendering bugs #2553
+* Return empty object from `queryRenderedFeatures` before the map is loaded #2621
+* Fix "there is no texture bound to the unit 1" warnings #2509
+* Allow transitioned values to be unset #2561
+
+## 0.18.0 (April 13 2016)
+
+#### New Features & Improvements
+
+* Implement zoom-and-property functions for `circle-color` and `circle-size` #2454
+* Dedupe attributions that are substrings of others #2453
+* Misc performance improvements #2483 #2488
+
+#### Bugfixes
+
+* Fix errors when unsetting and resetting a style property #2464
+* Fix errors when updating paint properties while using classes #2496
+* Fix errors caused by race condition in unserializeBuckets #2497
+* Fix overzoomed tiles in wrapped worlds #2482
+* Fix errors caused by mutating a filter object after calling `Map#setFilter` #2495
+
+## 0.17.0 (April 13 2016)
+
+#### Breaking Changes
+
+* Remove `map.batch` in favor of automatically batching style mutations (i.e. calls to `Map#setLayoutProperty`, `Map#setPaintProperty`, `Map#setFilter`, `Map#setClasses`, etc.) and applying them once per frame, significantly improving performance when updating the style frequently #2355 #2380
+* Remove `util.throttle` #2345
+
+#### New Features & Improvements
+
+* Improve performance of all style mutation methods by only recalculating affected properties #2339
+* Improve fading of labels and icons #2376
+* Improve rendering performance by reducing work done on the main thread #2394
+* Validate filters passed to `Map#queryRenderedFeatures` and `Map#querySourceFeatures` #2349
+* Display a warning if a vector tile's geometry extent is larger than supported  #2383
+* Implement property functions (i.e. data-driven styling) for `circle-color` and `circle-size` #1932
+* Add `Popup#setDOMContent` method #2436
+
+#### Bugfixes
+
+* Fix a performance regression caused by using 1 `WebWorker` instead of `# cpus - 1` `WebWorker`s, slowing down tile loading times #2408
+* Fix a bug in which `Map#queryRenderedFeatures` would sometimes return features that had been removed #2353
+* Fix `clusterMaxZoom` option on `GeoJSONSource` not working as expected #2374
+* Fix anti-aliased rendering for pattern fills #2372
+* Fix exception caused by calling `Map#queryRenderedFeatures` or `Map#querySourceFeatures` with no arguments
+* Fix exception caused by calling `Map#setLayoutProperty` for `text-field` or `icon-image` #2407
+
 ## 0.16.0 (March 24 2016)
 
 #### Breaking Changes

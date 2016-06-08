@@ -9,7 +9,6 @@ test('util', function(t) {
     t.equal(util.easeCubicInOut(0.2), 0.03200000000000001);
     t.equal(util.easeCubicInOut(0.5), 0.5, 'easeCubicInOut=0.5');
     t.equal(util.easeCubicInOut(1), 1, 'easeCubicInOut=1');
-    t.deepEqual(util.premultiply([0, 0.5, 1, 0.5], 0.5), [0, 0.125, 0.25, 0.25], 'premultiply');
     t.deepEqual(util.keysDifference({a:1}, {}), ['a'], 'keysDifference');
     t.deepEqual(util.keysDifference({a:1}, {a:1}), [], 'keysDifference');
     t.deepEqual(util.extend({a:1}, {b:2}), {a:1, b:2}, 'extend');
@@ -253,6 +252,42 @@ test('util', function(t) {
 
         t.ok(util.deepEqual(a, b));
         t.notOk(util.deepEqual(a, c));
+
+        t.end();
+    });
+
+    t.test('clone', function(t) {
+        t.test('array', function(t) {
+            var input = [false, 1, 'two'];
+            var output = util.clone(input);
+            t.notEqual(input, output);
+            t.deepEqual(input, output);
+            t.end();
+        });
+
+        t.test('object', function(t) {
+            var input = {a: false, b: 1, c: 'two'};
+            var output = util.clone(input);
+            t.notEqual(input, output);
+            t.deepEqual(input, output);
+            t.end();
+        });
+
+        t.test('deep object', function(t) {
+            var input = {object: {a: false, b: 1, c: 'two'}};
+            var output = util.clone(input);
+            t.notEqual(input.object, output.object);
+            t.deepEqual(input.object, output.object);
+            t.end();
+        });
+
+        t.test('deep array', function(t) {
+            var input = {array: [false, 1, 'two']};
+            var output = util.clone(input);
+            t.notEqual(input.array, output.array);
+            t.deepEqual(input.array, output.array);
+            t.end();
+        });
 
         t.end();
     });

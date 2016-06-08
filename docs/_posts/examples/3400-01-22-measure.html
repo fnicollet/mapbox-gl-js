@@ -53,7 +53,7 @@ var linestring = {
     }
 };
 
-map.on('style.load', function() {
+map.on('load', function() {
     map.addSource('geojson', {
         "type": "geojson",
         "data": geojson
@@ -62,7 +62,6 @@ map.on('style.load', function() {
     // Add styles to the map
     map.addLayer({
         id: 'measure-points',
-        interactive: true,
         type: 'circle',
         source: 'geojson',
         paint: {

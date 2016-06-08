@@ -15,12 +15,13 @@ var AnimationLoop = require('./animation_loop');
 var validateStyle = require('./validate_style');
 var Source = require('../source/source');
 var styleSpec = require('./style_spec');
+var StyleFunction = require('./style_function');
 
 module.exports = Style;
 
-function Style(stylesheet, animationLoop) {
+function Style(stylesheet, animationLoop, workerCount) {
     this.animationLoop = animationLoop || new AnimationLoop();
-    this.dispatcher = new Dispatcher(Math.max(browser.hardwareConcurrency - 1, 1), this);
+    this.dispatcher = new Dispatcher(workerCount || 1, this);
     this.spriteAtlas = new SpriteAtlas(512, 512);
     this.lineAtlas = new LineAtlas(256, 512);
 
@@ -506,7 +507,7 @@ Style.prototype = util.inherit(Evented, {
         if (this._handleErrors(validateStyle.filter, 'layers.' + layer.id + '.filter', filter)) return this;
 
         if (util.deepEqual(layer.filter, filter)) return this;
-        layer.filter = filter;
+        layer.filter = util.clone(filter);
 
         return this._updateLayer(layer);
     },
@@ -550,7 +551,23 @@ Style.prototype = util.inherit(Evented, {
 
         if (util.deepEqual(layer.getPaintProperty(name, klass), value)) return this;
 
+        var wasFeatureConstant = layer.isPaintValueFeatureConstant(name);
         layer.setPaintProperty(name, value, klass);
+
+        var isFeatureConstant = !(
+            value &&
+            StyleFunction.isFunctionDefinition(value) &&
+            value.property !== '$zoom' &&
+            value.property !== undefined
+        );
+
+        if (!isFeatureConstant || !wasFeatureConstant) {
+            this._updates.layers[layerId] = true;
+            if (layer.source) {
+                this._updates.sources[layer.source] = true;
+            }
+        }
+
         return this.updateClasses(layerId, name);
     },
 

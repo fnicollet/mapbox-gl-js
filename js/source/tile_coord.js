@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var WhooTS = require('whoots-js');
 var Coordinate = require('../geo/coordinate');
 
 module.exports = TileCoord;
@@ -31,8 +32,8 @@ TileCoord.prototype.toString = function() {
     return this.z + "/" + this.x + "/" + this.y;
 };
 
-TileCoord.prototype.toCoordinate = function() {
-    var zoom = this.z;
+TileCoord.prototype.toCoordinate = function(sourceMaxZoom) {
+    var zoom = Math.min(this.z, sourceMaxZoom);
     var tileScale = Math.pow(2, zoom);
     var row = this.y;
     var column = this.x + tileScale * this.w;
@@ -51,12 +52,15 @@ TileCoord.fromID = function(id) {
 };
 
 // given a list of urls, choose a url template and return a tile URL
-TileCoord.prototype.url = function(urls, sourceMaxZoom) {
+TileCoord.prototype.url = function(urls, sourceMaxZoom, scheme) {
+    var bbox = WhooTS.getTileBBox(this.x, this.y, this.z);
+
     return urls[(this.x + this.y) % urls.length]
         .replace('{prefix}', (this.x % 16).toString(16) + (this.y % 16).toString(16))
         .replace('{z}', Math.min(this.z, sourceMaxZoom || this.z))
         .replace('{x}', this.x)
-        .replace('{y}', this.y);
+        .replace('{y}', scheme === 'tms' ? (Math.pow(2, this.z) - this.y - 1) : this.y)
+        .replace('{bbox-epsg-3857}', bbox);
 };
 
 // Return the coordinate of the parent tile

@@ -1,6 +1,7 @@
 'use strict';
 
 var util = require('../util/util');
+var StructArrayType = require('../util/struct_array');
 
 module.exports = drawRaster;
 
@@ -27,6 +28,13 @@ function drawRaster(painter, source, layer, coords) {
     gl.depthFunc(gl.LEQUAL);
 }
 
+drawRaster.RasterBoundsArray = new StructArrayType({
+    members: [
+        { name: 'a_pos', type: 'Int16', components: 2 },
+        { name: 'a_texture_pos', type: 'Int16', components: 2 }
+    ]
+});
+
 function drawRasterTile(painter, source, layer, coord) {
 
     var gl = painter.gl;
@@ -36,7 +44,8 @@ function drawRasterTile(painter, source, layer, coord) {
     var tile = source.getTile(coord);
     var posMatrix = painter.transform.calculatePosMatrix(coord, source.maxzoom);
 
-    var program = painter.useProgram('raster', posMatrix);
+    var program = painter.useProgram('raster');
+    gl.uniformMatrix4fv(program.u_matrix, false, posMatrix);
 
     // color parameters
     gl.uniform1f(program.u_brightness_low, layer.paint['raster-brightness-min']);
@@ -53,13 +62,15 @@ function drawRasterTile(painter, source, layer, coord) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tile.texture);
 
-    if (parentTile) {
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, parentTile.texture);
+    gl.activeTexture(gl.TEXTURE1);
 
+    if (parentTile) {
+        gl.bindTexture(gl.TEXTURE_2D, parentTile.texture);
         parentScaleBy = Math.pow(2, parentTile.coord.z - tile.coord.z);
         parentTL = [tile.coord.x * parentScaleBy % 1, tile.coord.y * parentScaleBy % 1];
+
     } else {
+        gl.bindTexture(gl.TEXTURE_2D, tile.texture);
         opacities[1] = 0;
     }
 
@@ -72,11 +83,10 @@ function drawRasterTile(painter, source, layer, coord) {
     gl.uniform1i(program.u_image0, 0);
     gl.uniform1i(program.u_image1, 1);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, tile.boundsBuffer || painter.tileExtentBuffer);
-
-    gl.vertexAttribPointer(program.a_pos,         2, gl.SHORT, false, 8, 0);
-    gl.vertexAttribPointer(program.a_texture_pos, 2, gl.SHORT, false, 8, 4);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    var buffer = tile.boundsBuffer || painter.rasterBoundsBuffer;
+    var vao = tile.boundsVAO || painter.rasterBoundsVAO;
+    vao.bind(gl, program, buffer);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, buffer.length);
 }
 
 function spinWeights(angle) {

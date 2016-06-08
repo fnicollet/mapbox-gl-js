@@ -23,7 +23,7 @@ var map = new mapboxgl.Map({
     zoom: 3
 });
 
-map.on('style.load', function () {
+map.on('load', function () {
     // Add marker data as a new GeoJSON source.
     map.addSource('states', {
         'type': 'geojson',
@@ -33,7 +33,6 @@ map.on('style.load', function () {
     // Add a layer showing the markers.
     map.addLayer({
         'id': 'states-layer',
-        'interactive': true,
         'type': 'fill',
         'source': 'states',
         'paint': {
